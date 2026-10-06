@@ -102,3 +102,10 @@ export async function fetchImage(url) {
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
   return new Blob([bytes], { type: mime })
 }
+
+// Legge la pagina prodotto di un link incollato: stessa risposta di lookup, con un solo risultato
+export async function readLink(url) {
+  const r = await call({ action: 'page', url }, 40000)
+  r.candidates = (r.candidates || []).filter((c) => c && c.url)
+  return r
+}

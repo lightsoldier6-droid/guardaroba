@@ -3,7 +3,7 @@ import { state } from '../store.js'
 import { saveItem } from '../itemsave.js'
 import { CATEGORIES, COLORS, SEASONS, OCCASIONS, OCCASION_HINT, FIT_FEEL, WARMTH, SIZE_SYSTEMS, FABRICS, compositionToText, textToComposition, fabricFromComposition } from '../taxonomy.js'
 import { prepare, prepareCatalog, toBase64, imageURL } from '../images.js'
-import { analyze, lookup, fetchImage, canLookup, validEan } from '../ai.js'
+import { analyze, lookup, readLink, fetchImage, canLookup, validEan } from '../ai.js'
 import { webFields, mergeInto } from '../webmatch.js'
 import { webPanel, newWebState } from './webPanel.js'
 import * as batch from '../batch.js'
@@ -141,7 +141,7 @@ export function render(root, { go, params }) {
       if (token !== imgToken) return
       pending.catalog = prepared
       collect()
-      if (!pending.photo && !draft.photo_path) draft.cover = 'catalog'
+      draft.cover = 'catalog' // la foto di catalogo è quella "migliore": la tua resta disponibile e puoi rimetterla
       web.imgMsg = ''
     } catch (e) {
       if (token !== imgToken) return
@@ -152,7 +152,22 @@ export function render(root, { go, params }) {
     build()
   }
 
+  async function runLink(url) {
+    collect()
+    if (web.picked) unapplyWeb()
+    web = { ...newWebState(), status: 'busy' }; build()
+    try {
+      const r = await readLink(url)
+      collect()
+      web = { ...newWebState(), status: 'done', result: r }
+      if (r.level === 'exact') return applyCandidate(0, r.candidates[0].variant, 'chosen')
+      web.choosing = 0
+    } catch (e) { collect(); web = { ...newWebState(), status: 'error', msg: e.message } }
+    build()
+  }
+
   const handlers = {
+    link: (url) => runLink(url),
     search: () => runLookup(),
     apply: (ci, vi, level) => applyCandidate(ci, vi, level),
     choose: (ci) => { collect(); web.choosing = ci; web.picked = null; unapplyWeb(); build() },
@@ -197,7 +212,8 @@ export function render(root, { go, params }) {
     const catSelect = h('select', { required: true },
       h('option', { value: '' }, 'Scegli…'),
       h('optgroup', { label: 'Abbigliamento' }, Object.entries(CATEGORIES).filter(([, c]) => c.kind === 'garment').map(([k, c]) => h('option', { value: k, selected: draft.category === k }, c.label))),
-      h('optgroup', { label: 'Calzature' }, Object.entries(CATEGORIES).filter(([, c]) => c.kind === 'footwear').map(([k, c]) => h('option', { value: k, selected: draft.category === k }, c.label))))
+      h('optgroup', { label: 'Calzature' }, Object.entries(CATEGORIES).filter(([, c]) => c.kind === 'footwear').map(([k, c]) => h('option', { value: k, selected: draft.category === k }, c.label))),
+      h('optgroup', { label: 'Accessori' }, Object.entries(CATEGORIES).filter(([, c]) => c.kind === 'accessory').map(([k, c]) => h('option', { value: k, selected: draft.category === k }, c.label))))
     const sysSelect = h('select', null, h('option', { value: '' }, '—'), Object.entries(SIZE_SYSTEMS).map(([k, v]) => h('option', { value: k, selected: draft.size_system === k }, v)))
     const hasOwn = !!(pending.photo || draft.photo_path)
     const hasCat = !!(pending.catalog || draft.catalog_photo_path)

@@ -31,7 +31,7 @@ export async function saveItem(draft, pending = {}, existing = null) {
   }
   if (existing?.catalog_photo_path && existing.catalog_photo_path !== draft.catalog_photo_path) old.push(existing.catalog_photo_path, existing.catalog_thumb_path)
   if (!draft.catalog_photo_path && draft.cover === 'catalog') draft.cover = null
-  if (!draft.cover && draft.catalog_photo_path && !draft.photo_path) draft.cover = 'catalog'
+  if (!draft.cover && draft.catalog_photo_path) draft.cover = 'catalog'
   const row = { id }
   for (const k of FIELDS) row[k] = draft[k] ?? (ARRAYS.includes(k) ? [] : null)
   row.archived = !!draft.archived

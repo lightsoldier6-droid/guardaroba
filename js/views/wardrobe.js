@@ -16,7 +16,7 @@ function otherPhoto(it) {
   return h('details', { class: 'labelphoto' }, h('summary', null, catIsCover ? 'La tua foto' : 'Foto di catalogo'), thumb({ thumb_path: path }, 'big'))
 }
 
-const FILTERS = { all: 'Tutto', top: 'Sopra', mid: 'Strati', jacket: 'Giacche', outer: 'Capispalla', bottom: 'Sotto', shoes: 'Scarpe' }
+const FILTERS = { all: 'Tutto', top: 'Sopra', mid: 'Strati', jacket: 'Giacche', suit: 'Completi', outer: 'Capispalla', bottom: 'Sotto', shoes: 'Scarpe', belt: 'Cinture' }
 let filter = 'all', query = '', showArchived = false
 
 export const live = true

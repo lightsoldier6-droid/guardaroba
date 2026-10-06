@@ -18,6 +18,7 @@
 //
 // Azioni: analyze (foto capo/etichetta), size_guide (guida taglie),
 //         lookup (cerca il prodotto online dai codici dell'etichetta),
+//         page (legge il link di un prodotto incollato da te),
 //         fetch_image (scarica la foto di catalogo scelta).
 // =====================================================================
 import { withSupabase } from 'npm:@supabase/server@1'
@@ -30,9 +31,10 @@ const OLLAMA_TIMEOUT_MS = 70_000
 // Codici condivisi con l'app (js/taxonomy.js). Se ne aggiungi uno lì, aggiungilo anche qui.
 const CATEGORIES = [
   'shirt', 'tshirt', 'polo', 'knit', 'sweatshirt', 'vest',
-  'blazer', 'jacket', 'coat', 'raincoat',
+  'blazer', 'suit', 'jacket', 'coat', 'raincoat',
   'trousers', 'jeans', 'shorts',
   'shoes_formal', 'loafers', 'sneakers', 'boots', 'sport_shoes', 'sandals',
+  'belt',
 ]
 const COLORS = [
   'black', 'charcoal', 'grey', 'white', 'cream', 'beige', 'camel', 'brown',
@@ -60,7 +62,7 @@ const sizeSchema = {
 const ANALYZE_SCHEMA = {
   type: 'object',
   properties: {
-    kind: { type: 'string', enum: ['garment', 'footwear'] },
+    kind: { type: 'string', enum: ['garment', 'footwear', 'accessory'] },
     category: { type: 'string', enum: [...CATEGORIES, 'unknown'] },
     brand: { type: 'string' },
     color_primary: { type: 'string', enum: [...COLORS, 'unknown'] },
@@ -126,8 +128,8 @@ function analyzePrompt(hasPhoto: boolean, hasLabel: boolean): string {
     : "L'immagine è un capo d'abbigliamento o una calzatura da uomo."
   return `${which}
 Estrai i dati e rispondi SOLO con JSON conforme allo schema. Regole:
-- category: uno tra ${CATEGORIES.join(', ')}. blazer = giacca sartoriale; jacket = giubbotto/bomber/giacca casual; knit = maglione o cardigan; vest = gilet. Se non riconoscibile: 'unknown'.
-- kind: 'footwear' per le scarpe, altrimenti 'garment'.
+- category: uno tra ${CATEGORIES.join(', ')}. suit = completo (giacca e pantaloni dello stesso tessuto: etichetta che dice completo/abito/suit, o foto con entrambi i pezzi); belt = cintura; blazer = giacca sartoriale spaiata; jacket = giubbotto/bomber/giacca casual; knit = maglione o cardigan; vest = gilet. Se non riconoscibile: 'unknown'.
+- kind: 'footwear' per le scarpe, 'accessory' per le cinture, altrimenti 'garment'.
 - color_primary e colors_secondary: dal capo intero. Se c'è solo l'etichetta, usa un colore solo se è scritto (es. "Col. Navy", "Colore: blu"), altrimenti 'unknown' e lista vuota. Codici ammessi: ${COLORS.join(', ')} ('unknown' se non visibile). navy = blu scuro; denim = blu jeans; sage = verde salvia (verde grigiastro chiaro e smorzato); olive = verde oliva (scuro, tendente al marrone). Massimo 3 colori secondari, solo se ben visibili.
 - composition: fibre e percentuali come scritte in etichetta, fibra in italiano minuscolo (es. cotone, lana, elastan, poliestere, lino, cashmere, viscosa). Lista vuota se illeggibile.
 - sizes: TUTTE le taglie leggibili sull'etichetta con il loro sistema: IT, EU, UK, US, oppure LETTER per XS/S/M/L/XL. Per i pantaloni US scrivi la label come "W32 L34" o "32". Le taglie camicia in cm (es. 41) sono IT. Se il sistema non è indicato e il numero è tipico italiano (44-60) usa IT. Lista vuota se non leggibile.
@@ -229,8 +231,9 @@ async function callOllama(prompt: string, images: string[], schema: object) {
 // Le pagine vengono scaricate solo da indirizzi https pubblici, con limiti
 // di tempo, dimensione e reindirizzamenti.
 const SEARCH_URL = 'https://ollama.com/api/web_search'
+const WEB_FETCH_URL = 'https://ollama.com/api/web_fetch'
 const PAGE_TIMEOUT_MS = 9_000
-const PAGE_MAX_BYTES = 2_500_000
+const PAGE_MAX_BYTES = 1_500_000 // oltre si tronca: JSON-LD e Open Graph sono in testa alla pagina
 const IMAGE_MAX_BYTES = 8_000_000
 const MAX_PAGES = 6
 const UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1'
@@ -239,7 +242,7 @@ const CATEGORY_WORDS: Record<string, string> = {
   shirt: 'camicia', tshirt: 't-shirt', polo: 'polo', knit: 'maglione', sweatshirt: 'felpa', vest: 'gilet',
   blazer: 'giacca', jacket: 'giubbotto', coat: 'cappotto', raincoat: 'impermeabile', trousers: 'pantaloni',
   jeans: 'jeans', shorts: 'bermuda', shoes_formal: 'scarpe', loafers: 'mocassini', sneakers: 'sneakers',
-  boots: 'stivaletti', sport_shoes: 'scarpe sportive', sandals: 'sandali',
+  boots: 'stivaletti', sport_shoes: 'scarpe sportive', sandals: 'sandali', suit: 'completo', belt: 'cintura',
 }
 
 export type Variant = { color: string; sku: string; gtins: string[]; image: string; url: string }
@@ -253,7 +256,7 @@ export type Query = {
   ean: string; model_name: string; category: string
 }
 export type Match = Candidate & {
-  level: 'exact' | 'model' | 'possible'; why: string; variant: number; suggested: number
+  level: 'exact' | 'model' | 'possible'; why: string; variant: number; suggested: number; imageFrom?: string
 }
 
 // Normalizzazione per confrontare codici e nomi ("1234/567-800" → "1234567800")
@@ -297,7 +300,9 @@ async function assertPublic(url: URL): Promise<void> {
   if (addrs.some(isPrivateIp)) throw new HttpError(400, 'Indirizzo non ammesso')
 }
 
-async function safeFetch(raw: string, accept: string, maxBytes: number, timeoutMs: number) {
+// truncate = true: oltre maxBytes tiene la parte già letta invece di fallire (pagine HTML pesanti:
+// i dati del prodotto stanno quasi sempre all'inizio)
+async function safeFetch(raw: string, accept: string, maxBytes: number, timeoutMs: number, truncate = false) {
   let url = new URL(raw)
   if (url.protocol === 'http:') url.protocol = 'https:'
   const ctrl = new AbortController()
@@ -317,15 +322,20 @@ async function safeFetch(raw: string, accept: string, maxBytes: number, timeoutM
         continue
       }
       if (!res.ok || !res.body) { await res.body?.cancel(); throw new Error(`HTTP ${res.status}`) }
-      if (Number(res.headers.get('content-length') || 0) > maxBytes) { await res.body.cancel(); throw new Error('file troppo grande') }
+      if (!truncate && Number(res.headers.get('content-length') || 0) > maxBytes) { await res.body.cancel(); throw new Error('file troppo grande') }
       const reader = res.body.getReader()
       const chunks: Uint8Array[] = []
       let size = 0
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
+        if (size + value.length > maxBytes) {
+          await reader.cancel().catch(() => {})
+          if (!truncate) throw new Error('file troppo grande')
+          chunks.push(value.subarray(0, maxBytes - size)); size = maxBytes
+          break
+        }
         size += value.length
-        if (size > maxBytes) { await reader.cancel(); throw new Error('file troppo grande') }
         chunks.push(value)
       }
       const bytes = new Uint8Array(size)
@@ -603,7 +613,7 @@ export async function lookup(body: Node) {
   }
 
   const pages = await Promise.allSettled(hits.slice(0, MAX_PAGES).map(async (hit) => {
-    const page = await safeFetch(hit.url, 'text/html,application/xhtml+xml', PAGE_MAX_BYTES, PAGE_TIMEOUT_MS)
+    const page = await safeFetch(hit.url, 'text/html,application/xhtml+xml', PAGE_MAX_BYTES, PAGE_TIMEOUT_MS, true)
     if (!/html|xml/.test(page.type)) throw new Error('non è una pagina web')
     const charset = page.type.match(/charset=([\w-]+)/)?.[1] ?? 'utf-8'
     let html: string
@@ -612,6 +622,7 @@ export async function lookup(body: Node) {
   }))
 
   const matches: Match[] = []
+  const skipped: string[] = []
   pages.forEach((p, i) => {
     const hit = hits[i]
     if (p.status === 'fulfilled') {
@@ -619,6 +630,7 @@ export async function lookup(body: Node) {
       const m = scoreCandidate(cand, `${p.value.html} ${hit.content}`, q)
       if (m) matches.push(m)
     } else {
+      skipped.push(`${hostOf(hit.url)}: ${(p.reason as Error)?.message ?? 'errore'}`)
       // pagina non scaricabile (molti negozi bloccano i download automatici): resta l'estratto della ricerca
       const cand: Candidate = {
         url: hit.url, domain: hostOf(hit.url), title: hit.title, brand: '', image: '', price: null, currency: '',
@@ -631,6 +643,15 @@ export async function lookup(body: Node) {
 
   // a parità di livello: negozi italiani (nomi dei colori in italiano, prezzi in euro), poi con foto e varianti
   const italian = (m: Match) => Number(/\.it$/.test(m.domain) || /\/it([-_/]|$)/i.test(m.url))
+  // pagine riconosciute dal codice ma senza foto (negozio che blocca): secondo tentativo con il lettore di Ollama
+  const noImage = matches.filter((m) => !m.image && m.level !== 'possible').slice(0, 2)
+  await Promise.allSettled(noImage.map(async (m) => {
+    const imgs = await ollamaPageImages(m.url, q)
+    if (imgs[0]) { m.image = imgs[0]; m.imageFrom = 'reader' }
+  }))
+  // stesso codice su un altro sito: la foto del prodotto è la stessa
+  const donor = matches.find((m) => m.image && m.level !== 'possible')
+  for (const m of matches) if (!m.image && donor && m.level !== 'possible' && m !== donor) { m.image = donor.image; m.imageFrom = donor.domain }
   matches.sort((a, b) => RANK[b.level] - RANK[a.level] || italian(b) - italian(a) || Number(!!b.image) - Number(!!a.image) || b.variants.length - a.variants.length)
   // lo stesso prodotto trovato più volte sullo stesso sito conta una volta sola
   const seenProd = new Set<string>()
@@ -641,7 +662,76 @@ export async function lookup(body: Node) {
     return true
   })
   const candidates = unique.slice(0, 4)
-  return { level: candidates[0]?.level ?? 'none', queries, candidates }
+  return { level: candidates[0]?.level ?? 'none', queries, candidates, skipped }
+}
+
+// Lettore di pagine di Ollama (stessa chiave): estrae gli indirizzi delle immagini prodotto dal testo e dai link
+export function imagesFromText(text: string, links: string[], q: Pick<Query, 'article_code' | 'color_code'>): string[] {
+  const found = new Set<string>()
+  for (const m of text.matchAll(/!\[[^\]]*\]\((https:\/\/[^)\s]+)\)/g)) found.add(m[1])
+  for (const m of text.matchAll(/https:\/\/[^\s)"'<>]+\.(?:jpe?g|png|webp|avif)(?:\?[^\s)"'<>]*)?/gi)) found.add(m[0])
+  for (const l of links) if (/^https:\/\/[^\s]+\.(?:jpe?g|png|webp|avif)(?:\?|$)/i.test(l)) found.add(l)
+  const art = norm(q.article_code), col = norm(q.color_code)
+  const junk = /logo|icon|sprite|favicon|placeholder|banner|payment|flag|badge|social/i
+  return [...found].filter((u) => !junk.test(u))
+    .map((u) => ({ u, s: (art && norm(u).includes(art) ? 2 : 0) + (col && norm(u).includes(col) ? 1 : 0) }))
+    .sort((a, b) => b.s - a.s).map((x) => x.u).slice(0, 5)
+}
+
+async function ollamaPageImages(url: string, q: Query): Promise<string[]> {
+  const key = Deno.env.get('OLLAMA_API_KEY')
+  if (!key) return []
+  const res = await fetch(WEB_FETCH_URL, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url }),
+    signal: AbortSignal.timeout(12_000),
+  })
+  if (!res.ok) return []
+  const data = await res.json()
+  return imagesFromText(String(data?.content ?? ''), (data?.links ?? []).map(String), q)
+}
+
+// --- Link incollato da te (azione "page") ----------------------------------
+export async function readPage(raw: unknown) {
+  if (typeof raw !== 'string' || raw.length > 2000) throw new HttpError(400, 'Link non valido')
+  let url: URL
+  try { url = new URL(raw.trim()) } catch { throw new HttpError(400, 'Link non valido') }
+  if (url.protocol === 'http:') url.protocol = 'https:'
+  checkUrlShape(url)
+  const empty = { article_code: '', color_code: '' }
+  let cand: Candidate | null = null
+  try {
+    const page = await safeFetch(url.toString(), 'text/html,application/xhtml+xml', PAGE_MAX_BYTES, 12_000, true)
+    if (!/html|xml/.test(page.type)) throw new Error('non è una pagina web')
+    const charset = page.type.match(/charset=([\w-]+)/)?.[1] ?? 'utf-8'
+    let html: string
+    try { html = new TextDecoder(charset).decode(page.bytes) } catch { html = new TextDecoder().decode(page.bytes) }
+    cand = parseProductPage(html, page.url)
+  } catch (e) {
+    if (e instanceof HttpError) throw e
+    // il negozio blocca: prova con il lettore di Ollama (titolo e immagini)
+    const key = Deno.env.get('OLLAMA_API_KEY')
+    if (!key) throw new HttpError(500, 'Secret OLLAMA_API_KEY non impostato nella Edge Function')
+    const res = await fetch(WEB_FETCH_URL, {
+      method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: url.toString() }), signal: AbortSignal.timeout(15_000),
+    }).catch(() => null)
+    if (!res?.ok) throw new HttpError(502, 'Il negozio non lascia leggere questa pagina: compila i campi a mano')
+    const data = await res.json()
+    cand = {
+      url: url.toString(), domain: hostOf(url.toString()), title: String(data?.title ?? ''), brand: '',
+      image: imagesFromText(String(data?.content ?? ''), (data?.links ?? []).map(String), empty)[0] ?? '',
+      price: null, currency: '', color: '', material: '', sku: '', gtins: [], variants: [], isProduct: true, source: 'search',
+    }
+  }
+  if (!cand.image) {
+    const imgs = await ollamaPageImages(cand.url, { ...empty } as Query).catch(() => [])
+    if (imgs[0]) cand.image = imgs[0]
+  }
+  const level = cand.variants.length > 1 ? 'model' : 'exact'
+  const m: Match = { ...cand, level, why: 'link inserito da te', variant: cand.variants.length === 1 ? 0 : -1, suggested: -1 }
+  return { level, queries: [], candidates: [m] }
 }
 
 // --- Foto di catalogo -----------------------------------------------------
@@ -699,6 +789,10 @@ export default {
 
       if (action === 'lookup') {
         return Response.json(await lookup(body))
+      }
+
+      if (action === 'page') {
+        return Response.json(await readPage(body.url))
       }
 
       if (action === 'fetch_image') {

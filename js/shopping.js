@@ -5,7 +5,7 @@ import { recommendSize } from './sizes.js'
 
 const ALL_SEASONS = Object.keys(SEASONS)
 const OCC_SHARE = { formal: 0.12, work: 0.45, casual: 0.55, sport: 0.2 } // quota dei giorni in cui serve
-const SLOT_USE = { top: 1, bottom: 1, shoes: 1, mid: 0.55, jacket: 0.7, outer: 0.6 }
+const SLOT_USE = { top: 1, bottom: 1, shoes: 1, mid: 0.55, jacket: 0.7, outer: 0.6, suit: 0.5, belt: 0.8 }
 
 // Capi duplicati o simili
 export function duplicates(candidate, items) {

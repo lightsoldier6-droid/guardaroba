@@ -77,7 +77,7 @@ function outfitCard(o, i, today, already) {
     already ? null : h('button', { class: 'btn', onclick: mark }, h('span', { html: icon.check }), 'Indossato oggi'),
   )
 }
-const slotKey = (o, it) => Object.keys(o.slots).find((k) => o.slots[k]?.id === it.id)
+const slotKey = (o, it) => (o.suit === 'full' && o.slots.jacket?.id === it.id ? 'suit' : Object.keys(o.slots).find((k) => o.slots[k]?.id === it.id))
 
 function emptyState(missing, go) {
   const names = { top: 'una camicia, polo o t-shirt', bottom: 'un paio di pantaloni', shoes: 'un paio di scarpe', jacket: 'una giacca' }

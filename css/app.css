@@ -339,3 +339,8 @@ td sup { font-size: 10px; color: var(--rust); margin-left: 1px; }
 .sw:active i { transform: scale(.88); }
 .choice:active, .mini:active, .variant:active { background: var(--rule); }
 .sw i, .choice { transition: transform .08s; }
+
+.linkrow { margin: 6px 0 10px; }
+.linkrow summary { cursor: pointer; padding: 8px 0; font: 500 15px var(--f-cond); color: var(--ink-2); }
+.linkrow .row-btn input { min-width: 0; }
+input[type=url] { width: 100%; font: 400 17px/1.3 var(--f-body); color: var(--ink); background: var(--surface); border: 1px solid var(--rule); border-radius: 2px; padding: 11px 12px; min-height: 46px; -webkit-appearance: none; appearance: none; }

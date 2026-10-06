@@ -29,7 +29,7 @@ create table if not exists public.items (
   id               uuid primary key default gen_random_uuid(),
   user_id          uuid not null default auth.uid() references auth.users(id) on delete cascade,
   kind             text not null default 'garment'
-                     check (kind in ('garment', 'footwear')),
+                     check (kind in ('garment', 'footwear', 'accessory')),
   category         text not null,                 -- es. 'shirt', 'blazer', 'sneakers'
   name             text,                          -- nome libero, es. "Oxford azzurra"
   brand            text,
@@ -75,6 +75,11 @@ alter table public.items add column if not exists cover text;                -- 
 
 -- exact = codice a barre o articolo+colore; model = articolo trovato, colore scelto da te;
 -- chosen = pagina scelta da te tra i candidati
+-- v3: accessori (cinture). Le categorie nuove, come 'suit' (completo), non richiedono modifiche.
+alter table public.items drop constraint if exists items_kind_check;
+alter table public.items add constraint items_kind_check
+  check (kind in ('garment', 'footwear', 'accessory'));
+
 alter table public.items drop constraint if exists items_match_level_check;
 alter table public.items add constraint items_match_level_check
   check (match_level is null or match_level in ('exact', 'model', 'chosen'));

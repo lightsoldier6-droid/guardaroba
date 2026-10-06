@@ -13,6 +13,8 @@ export const CATEGORIES = {
   sweatshirt:   { label: 'Felpa',              g: 'f', kind: 'garment',  slot: 'mid',    group: 'knit',     warmth: 2, life: 3 },
   vest:         { label: 'Gilet',              g: 'm', kind: 'garment',  slot: 'mid',    group: 'jackets',  warmth: 1, life: 5 },
   blazer:       { label: 'Giacca sartoriale',  g: 'f', kind: 'garment',  slot: 'jacket', group: 'jackets',  warmth: 2, life: 6 },
+  // un completo è un capo solo, ma negli outfit vale come giacca + pantaloni: si può indossare intero o spezzato
+  suit:         { label: 'Completo',           g: 'm', kind: 'garment',  slot: 'suit',   group: 'jackets',  warmth: 2, life: 7 },
   jacket:       { label: 'Giubbotto',          g: 'm', kind: 'garment',  slot: 'outer',  group: 'jackets',  warmth: 2, life: 5 },
   coat:         { label: 'Cappotto',           g: 'm', kind: 'garment',  slot: 'outer',  group: 'jackets',  warmth: 3, life: 8 },
   raincoat:     { label: 'Impermeabile',       g: 'm', kind: 'garment',  slot: 'outer',  group: 'jackets',  warmth: 1, life: 6 },
@@ -25,10 +27,11 @@ export const CATEGORIES = {
   boots:        { label: 'Stivaletti',         g: 'm', pl: true, kind: 'footwear', slot: 'shoes',  group: 'shoes',    warmth: 3, life: 5 },
   sport_shoes:  { label: 'Scarpe sportive',    g: 'f', pl: true, kind: 'footwear', slot: 'shoes',  group: 'shoes',    warmth: 2, life: 2 },
   sandals:      { label: 'Sandali',            g: 'm', pl: true, kind: 'footwear', slot: 'shoes',  group: 'shoes',    warmth: 1, life: 3 },
+  belt:         { label: 'Cintura',            g: 'f', kind: 'accessory', slot: 'belt',  group: null,       warmth: 0, life: 8 },
 }
 
 export const SLOTS = {
-  top: 'Sopra', mid: 'Strato', jacket: 'Giacca', outer: 'Capospalla', bottom: 'Sotto', shoes: 'Scarpe',
+  top: 'Sopra', mid: 'Strato', jacket: 'Giacca', outer: 'Capospalla', bottom: 'Sotto', shoes: 'Scarpe', suit: 'Completo', belt: 'Cintura',
 }
 
 // neutral: si abbina a tutto. hue: tonalità (gradi) per gli accenti. l: luminosità 0-1
@@ -191,6 +194,7 @@ export function colorFromName(name) {
 
 // Categoria dal titolo di una pagina prodotto (solo se l'etichetta non l'ha detta)
 const CATEGORY_WORDS = [
+  [/\bcomplet[oi]\b|abito (da )?uomo|\bsuit\b|two[- ]piece|\bdue pezzi\b/, 'suit'], [/cintur|\bcinta\b|\bbelt\b/, 'belt'],
   [/t-?shirt|tee\b|maglietta/, 'tshirt'], [/\bpolo\b/, 'polo'], [/camicia|shirt|chemise|camisa|hemd/, 'shirt'],
   [/felpa|sweatshirt|hoodie|sweat\b/, 'sweatshirt'], [/gilet|vest\b|waistcoat|smanicato/, 'vest'],
   [/maglion|cardigan|pullover|maglia|sweater|jumper|knit|dolcevita|turtleneck/, 'knit'],

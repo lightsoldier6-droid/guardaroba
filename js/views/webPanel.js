@@ -18,7 +18,8 @@ function candCard(c, { actions = [], img } = {}) {
       h('b', null, c.displayTitle || modelName(c, c.brand) || c.title || c.domain),
       h('span', { class: 'muted' }, [c.domain, eur(c.price, c.currency)].filter(Boolean).join(' · ')),
       c.why ? h('span', { class: 'cand-why' }, `Riconosciuto da: ${c.why}`) : null,
-      c.source === 'search' ? h('span', { class: 'cand-why' }, 'Pagina non leggibile dal negozio: niente foto, apri il link per vederla') : null,
+      c.imageFrom && c.imageFrom !== 'reader' ? h('span', { class: 'cand-why' }, `Foto presa da ${c.imageFrom} (stesso codice)`) : null,
+      c.source === 'search' && !c.image ? h('span', { class: 'cand-why' }, 'Il negozio non lascia leggere la pagina: niente foto, apri il link per vederla') : null,
       h('a', { href: c.url, target: '_blank', rel: 'noopener noreferrer', class: 'cand-link' }, 'Apri la pagina'),
       actions.length ? h('div', { class: 'cand-actions' }, actions) : null))
 }
@@ -33,8 +34,24 @@ function variantGrid(c, { onPick, suggested = -1, picked = -1 }) {
   }))
 }
 
-// web: stato (newWebState). handlers: { search, apply(ci, vi, level), reject(), none(), canSearch, catalogPreview }
+// Riga "incolla il link del prodotto": legge la pagina e la tratta come un risultato certo
+export function linkRow(onLink, { open = false } = {}) {
+  const input = h('input', { type: 'url', inputmode: 'url', placeholder: 'https://… pagina del prodotto', autocomplete: 'off', autocapitalize: 'none', enterkeyhint: 'go' })
+  const go = () => { const v = input.value.trim(); if (/^https?:\/\/\S+\.\S+/.test(v)) onLink(v); else input.focus() }
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); go() } })
+  return h('details', { class: 'linkrow', open },
+    h('summary', null, 'Hai il link del prodotto? Incollalo'),
+    h('div', { class: 'row-btn' }, input, h('button', { type: 'button', class: 'btn ghost', onclick: go }, 'Leggi')))
+}
+
+// web: stato (newWebState). handlers: { search, apply(ci, vi, level), reject(), none(), canSearch, catalogPreview, link(url) }
 export function webPanel(web, handlers) {
+  const panel = webPanelInner(web, handlers)
+  const showLink = handlers.link && web.status !== 'busy' && !web.picked
+  return showLink ? [panel, linkRow(handlers.link, { open: handlers.linkOpen || (web.status === 'done' && (web.rejected || web.result?.level === 'none')) })] : panel
+}
+
+function webPanelInner(web, handlers) {
   const { search, apply, reject, none, canSearch, catalogPreview } = handlers
   if (web.status === 'idle') {
     if (canSearch) return h('div', { class: 'webbar' }, h('span', null, 'Cerca il capo online da marca e codici dell’etichetta.'),

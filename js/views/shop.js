@@ -2,7 +2,7 @@ import { h, put, add, keepAnchor, toast, choices, swatches, field, section, phot
 import { state, latestMeasures } from '../store.js'
 import { CATEGORIES, COLORS, SEASONS, OCCASIONS, OCCASION_HINT, SIZE_SYSTEMS, FABRICS } from '../taxonomy.js'
 import { prepare, toBase64, hydrate } from '../images.js'
-import { analyze, readSizeGuide, lookup, canLookup } from '../ai.js'
+import { analyze, readSizeGuide, lookup, readLink, canLookup } from '../ai.js'
 import { webFields, mergeInto } from '../webmatch.js'
 import { webPanel, newWebState } from './webPanel.js'
 import { evaluate } from '../shopping.js'
@@ -98,7 +98,23 @@ export function render(root, { go }) {
     if (!cand.price && w.fields.list_price) cand.price = w.fields.list_price
     build()
   }
+  async function runLink(url) {
+    collect(); unapply()
+    web = { ...newWebState(), status: 'busy' }; build()
+    try {
+      const r = await readLink(url)
+      collect()
+      web = { ...newWebState(), status: 'done', result: r }
+      const c = r.candidates[0]
+      if (c?.brand && !cand.brand) cand.brand = c.brand.replace(/[®™©]/g, '').trim()
+      if (r.level === 'exact') return applyWeb(0, c.variant, 'chosen')
+      web.choosing = 0
+    } catch (e) { collect(); web = { ...newWebState(), status: 'error', msg: e.message } }
+    build()
+  }
   const webHandlers = {
+    link: (url) => runLink(url),
+    linkOpen: true,
     search: () => runLookup(),
     apply: (ci, vi, level) => applyWeb(ci, vi, level),
     choose: (ci) => { collect(); unapply(); web.picked = null; web.choosing = ci; build() },
@@ -156,7 +172,8 @@ export function render(root, { go }) {
   function build() {
     const sel = h('select', null, h('option', { value: '' }, 'Scegli…'),
       h('optgroup', { label: 'Abbigliamento' }, Object.entries(CATEGORIES).filter(([, c]) => c.kind === 'garment').map(([k, c]) => h('option', { value: k, selected: cand.category === k }, c.label))),
-      h('optgroup', { label: 'Calzature' }, Object.entries(CATEGORIES).filter(([, c]) => c.kind === 'footwear').map(([k, c]) => h('option', { value: k, selected: cand.category === k }, c.label))))
+      h('optgroup', { label: 'Calzature' }, Object.entries(CATEGORIES).filter(([, c]) => c.kind === 'footwear').map(([k, c]) => h('option', { value: k, selected: cand.category === k }, c.label))),
+      h('optgroup', { label: 'Accessori' }, Object.entries(CATEGORIES).filter(([, c]) => c.kind === 'accessory').map(([k, c]) => h('option', { value: k, selected: cand.category === k }, c.label))))
     ctl = {
       category: sel,
       color: swatches(cand.color_primary, { onchange: () => ctl.colors2.refresh() }),
@@ -223,7 +240,7 @@ function resultView(r, bought, listPrice) {
         h('span', { class: `conf c-${s.confidence}` }, CONF[s.confidence]),
         h('p', null, s.reason.charAt(0).toUpperCase() + s.reason.slice(1) + '.'),
         s.alt ? h('p', { class: 'muted' }, `Se non va: ${s.alt}.`) : null)
-        : h('p', { class: 'muted' }, s?.reason || 'Scegli la categoria per avere una taglia.')),
+        : h('p', { class: 'muted' }, s?.reason || (cand.category === 'belt' ? 'Cinture: la taglia è la lunghezza in cm. Prendi quella della cintura che usi di più, misurata dalla fibbia al foro centrale.' : 'Scegli la categoria per avere una taglia.'))),
     h('div', { class: 'actions' }, h('button', { class: 'btn', onclick: bought }, 'L’ho comprato: aggiungi all’armadio')),
   )
 }
