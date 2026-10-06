@@ -1,5 +1,5 @@
-// IndexedDB minimale: kv (cache dati), outbox (modifiche da inviare), img (foto in cache)
-const DB = 'guardaroba', VER = 1
+// IndexedDB minimale: kv (cache dati), outbox (modifiche da inviare), img (foto in cache), batch (etichette a raffica)
+const DB = 'guardaroba', VER = 2
 let dbp = null
 
 function open() {
@@ -11,6 +11,7 @@ function open() {
       if (!db.objectStoreNames.contains('kv')) db.createObjectStore('kv')
       if (!db.objectStoreNames.contains('outbox')) db.createObjectStore('outbox', { keyPath: 'seq', autoIncrement: true })
       if (!db.objectStoreNames.contains('img')) db.createObjectStore('img')
+      if (!db.objectStoreNames.contains('batch')) db.createObjectStore('batch', { keyPath: 'id' })
     }
     r.onsuccess = () => resolve(r.result)
     r.onerror = () => reject(r.error)

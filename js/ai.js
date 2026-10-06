@@ -29,6 +29,15 @@ async function call(body, ms = 90000) {
 }
 
 const pick = (v, dict) => (v && v in dict ? v : null)
+const txt = (v, max = 60) => (typeof v === 'string' ? v.trim().slice(0, max) : '')
+
+// Codice a barre: accettato solo con cifra di controllo corretta (un numero letto male non deve "corrispondere")
+export function validEan(code) {
+  if (!/^(\d{8}|\d{12}|\d{13}|\d{14})$/.test(code || '')) return false
+  const d = code.split('').map(Number), check = d.pop()
+  const sum = d.reverse().reduce((a, n, i) => a + n * (i % 2 === 0 ? 3 : 1), 0)
+  return (10 - (sum % 10)) % 10 === check
+}
 const pickAll = (arr, dict) => [...new Set((arr || []).filter((v) => v in dict))]
 
 // Normalizza la risposta: scarta valori fuori vocabolario
@@ -40,6 +49,14 @@ export async function analyze({ photo, label }) {
   return {
     model,
     readable: r.label_readable !== false,
+    // dati per la ricerca online (non tutti finiscono nel capo)
+    codes: {
+      article_code: txt(r.article_code, 40) || null,
+      color_code: txt(r.color_code, 20) || null,
+      color_name: txt(r.color_name, 40) || null,
+      ean: validEan(String(r.ean || '').replace(/\D/g, '')) ? String(r.ean).replace(/\D/g, '') : null,
+      model_name: txt(r.model_name) || null,
+    },
     fields: {
       kind: category ? CATEGORIES[category].kind : (r.kind === 'footwear' ? 'footwear' : null),
       category,
@@ -63,4 +80,24 @@ export async function analyze({ photo, label }) {
 export async function readSizeGuide(image) {
   const { result } = await call({ action: 'size_guide', image })
   return result
+}
+
+// Cerca il capo online dai codici dell'etichetta. Risposta: { level, candidates, queries }
+// level: exact | model | possible | none
+export async function lookup({ brand, article_code, color_code, color_name, ean, model_name, category }) {
+  const r = await call({ action: 'lookup', brand, article_code, color_code, color_name, ean, model_name, category }, 60000)
+  r.candidates = (r.candidates || []).filter((c) => c && c.url)
+  return r
+}
+
+// C'è abbastanza per cercare? (marca con codice o nome del modello, oppure codice a barre)
+export const canLookup = (d) => !!(d?.ean || ((d?.article_code || d?.model_name) && d?.brand) || (d?.article_code && String(d.article_code).length >= 6))
+
+// Scarica la foto di catalogo passando dalla Edge Function (il browser non può leggerla direttamente)
+export async function fetchImage(url) {
+  const { mime, data } = await call({ action: 'fetch_image', url }, 30000)
+  const bin = atob(data)
+  const bytes = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+  return new Blob([bytes], { type: mime })
 }

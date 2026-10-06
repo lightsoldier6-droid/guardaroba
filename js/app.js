@@ -7,6 +7,8 @@ import * as itemForm from './views/itemForm.js'
 import * as shop from './views/shop.js'
 import * as measures from './views/measures.js'
 import * as settings from './views/settings.js'
+import * as batchView from './views/batchView.js'
+import * as batch from './batch.js'
 
 const view = document.getElementById('view')
 const titleEl = document.getElementById('title')
@@ -19,6 +21,7 @@ const ROUTES = [
   [/^#\/capo\/nuovo$/, itemForm, 'closet', true],
   [/^#\/capo\/([\w-]+)\/modifica$/, itemForm, 'closet', true, 'id'],
   [/^#\/capo\/([\w-]+)$/, { ...wardrobe, render: wardrobe.renderItem, title: 'Capo' }, 'closet', true, 'id'],
+  [/^#\/raffica$/, batchView, 'closet', true],
   [/^#\/negozio$/, shop, 'shop'],
   [/^#\/misure$/, measures, 'measure'],
   [/^#\/impostazioni$/, settings, null, true],
@@ -97,10 +100,10 @@ async function start() {
   if (user) { state.user = user; await loadCache(user.id) }
   route()
   paintSync()
-  if (user) sync()
+  if (user) { sync(); batch.load().then(() => batch.run()) }
   sb.auth.onAuthStateChange(async (event, session) => {
     const u = session?.user || null
-    if (event === 'SIGNED_IN' && u && u.id !== state.user?.id) { state.user = u; await loadCache(u.id); route(); sync() }
+    if (event === 'SIGNED_IN' && u && u.id !== state.user?.id) { state.user = u; await loadCache(u.id); route(); sync(); batch.load().then(() => batch.run()) }
     else if (event === 'SIGNED_OUT') { state.user = null; route() }
     else if (u) state.user = u
   })

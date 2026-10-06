@@ -120,6 +120,12 @@ Facoltativo: un terzo segreto `OLLAMA_VISION_MODELS` per scegliere i modelli, se
 | Errore di salvataggio “permission denied” o “row-level security” | Script del passo 2 non eseguito tutto | Rieseguilo per intero |
 | Dopo un aggiornamento del codice l’iPhone mostra la versione vecchia | Copia locale dell’app | Chiudi l’app dal multitasking e riaprila due volte |
 
+## Aggiornamento “ricerca online” (v2)
+Se il database esisteva già prima di questa versione:
+1. **SQL Editor → New query**: incolla tutto `supabase/schema.sql` e premi **Run** (aggiunge solo le colonne nuove, non tocca i dati).
+2. **Edge Functions → ai → Code**: incolla il nuovo `supabase/functions/ai/index.ts` e **Deploy**.
+3. Nessun nuovo segreto: la ricerca usa la stessa `OLLAMA_API_KEY`.
+
 ## Aggiornare l’app in futuro
 Modifica i file su GitHub (matita → Commit). Se cambi file in `js/` o `css/`, aumenta anche il numero di versione nella prima riga utile di `sw.js` (`guardaroba-v1` → `guardaroba-v2`): così l’iPhone scarica subito la nuova versione.
 Se cambi `supabase/functions/ai/index.ts`, ripeti il passo 5 incollando il nuovo codice nella funzione esistente.

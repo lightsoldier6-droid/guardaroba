@@ -43,6 +43,12 @@ export async function prepare(file) {
   return { full, thumb, ai }
 }
 
+// Foto di catalogo scaricata dal web: archivio e miniatura, come le tue
+export async function prepareCatalog(blob) {
+  const [full, thumb] = await Promise.all([compress(blob, 1600, 0.85), compress(blob, 480, 0.78)])
+  return { full, thumb }
+}
+
 const memo = new Map()
 export async function imageURL(path) {
   if (!path) return null

@@ -184,7 +184,7 @@ export async function sync() {
 }
 
 export async function clearLocal() {
-  await idb.clear('kv'); await idb.clear('outbox'); await idb.clear('img')
+  await idb.clear('kv'); await idb.clear('outbox'); await idb.clear('img'); await idb.clear('batch').catch(() => {})
   state.items = []; state.wearLog = []; state.measures = []; state.pending = 0; state.lastSync = null
   emit()
 }

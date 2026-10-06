@@ -115,10 +115,28 @@ export function field(label, control, hint) {
 }
 export const section = (title, ...children) => h('section', { class: 'sec' }, title ? h('h2', null, title) : null, ...children)
 
+// Foto di copertina: la tua o quella di catalogo (campo cover); se ne manca una, l'altra
+export function coverPaths(it) {
+  const own = { full: it?.photo_path || it?.thumb_path, thumb: it?.thumb_path || it?.photo_path }
+  const cat = { full: it?.catalog_photo_path || it?.catalog_thumb_path, thumb: it?.catalog_thumb_path || it?.catalog_photo_path }
+  const useCat = it?.cover === 'catalog' ? !!cat.full : !own.full && !!cat.full
+  return useCat ? cat : own
+}
+
 export function thumb(item, cls = '') {
-  return h('span', { class: `ph ${cls}` }, item?.thumb_path || item?.photo_path
-    ? h('img', { 'data-path': item.thumb_path || item.photo_path, alt: '' })
+  const p = coverPaths(item)
+  const path = cls.includes('big') ? p.full : p.thumb
+  return h('span', { class: `ph ${cls}` }, path
+    ? h('img', { 'data-path': path, alt: '' })
     : h('i', { style: { background: COLORS[item?.color_primary]?.hex || 'var(--rule)' } }))
+}
+
+// Immagine da un negozio online (solo anteprima): niente referrer, si nasconde se non si carica
+export function remoteImg(url, cls = 'ph') {
+  const img = url ? h('img', { src: url, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer', decoding: 'async' }) : null
+  const box = h('span', { class: cls }, img || h('i', { style: { background: 'var(--rule)' } }))
+  img?.addEventListener('error', () => img.replaceWith(h('i', { style: { background: 'var(--rule)' } })))
+  return box
 }
 
 // Input file per foto: su iPhone offre "Scatta foto" o "Libreria"

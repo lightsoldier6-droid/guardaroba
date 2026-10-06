@@ -1,13 +1,14 @@
 // Service worker: rende l'app installabile e utilizzabile con rete scarsa.
 // File dell'app: rete prima (con timeout breve), poi copia locale. Font: copia locale.
 // Le chiamate a Supabase, AI e meteo NON passano dalla cache: le gestisce l'app.
-const VERSION = 'guardaroba-v6'
+const VERSION = 'guardaroba-v7'
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './css/app.css', './vendor/supabase.js',
   './js/app.js', './js/config.js', './js/store.js', './js/idb.js', './js/images.js', './js/weather.js', './js/ai.js',
   './js/ui.js', './js/taxonomy.js', './js/outfit.js', './js/sizes.js', './js/shopping.js',
+  './js/webmatch.js', './js/batch.js', './js/itemsave.js',
   './js/views/today.js', './js/views/wardrobe.js', './js/views/itemForm.js', './js/views/shop.js',
-  './js/views/measures.js', './js/views/settings.js',
+  './js/views/measures.js', './js/views/settings.js', './js/views/webPanel.js', './js/views/batchView.js',
   './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png',
 ]
 const FONT_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com']

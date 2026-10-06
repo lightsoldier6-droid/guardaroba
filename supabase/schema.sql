@@ -1,5 +1,5 @@
 -- =====================================================================
--- Guardaroba — schema del database (v1)
+-- Guardaroba — schema del database (v2: ricerca online del capo)
 -- Da incollare UNA volta in Supabase: SQL Editor → New query → Run.
 -- È idempotente: rieseguirlo non duplica nulla e non cancella dati.
 --
@@ -61,6 +61,29 @@ create table if not exists public.items (
 
 -- aggiunte successive (idempotenti, per database già creati)
 alter table public.items add column if not exists fabric text;
+
+-- v2: capo riconosciuto online dai codici dell'etichetta
+alter table public.items add column if not exists article_code text;         -- codice articolo/modello letto in etichetta
+alter table public.items add column if not exists color_code text;           -- codice colore/variante letto in etichetta
+alter table public.items add column if not exists ean text;                  -- codice a barre del cartellino
+alter table public.items add column if not exists source_url text;           -- pagina prodotto da cui vengono i dati web
+alter table public.items add column if not exists match_level text;          -- come è stato riconosciuto (vedi vincolo sotto)
+alter table public.items add column if not exists list_price numeric(10, 2); -- prezzo di listino trovato online
+alter table public.items add column if not exists catalog_photo_path text;   -- foto di catalogo nello storage 'wardrobe'
+alter table public.items add column if not exists catalog_thumb_path text;
+alter table public.items add column if not exists cover text;                -- foto di copertina: 'own' o 'catalog'
+
+-- exact = codice a barre o articolo+colore; model = articolo trovato, colore scelto da te;
+-- chosen = pagina scelta da te tra i candidati
+alter table public.items drop constraint if exists items_match_level_check;
+alter table public.items add constraint items_match_level_check
+  check (match_level is null or match_level in ('exact', 'model', 'chosen'));
+alter table public.items drop constraint if exists items_cover_check;
+alter table public.items add constraint items_cover_check
+  check (cover is null or cover in ('own', 'catalog'));
+alter table public.items drop constraint if exists items_list_price_check;
+alter table public.items add constraint items_list_price_check
+  check (list_price is null or list_price >= 0);
 
 create index if not exists items_user_idx on public.items (user_id);
 
@@ -178,7 +201,7 @@ create policy "misure: cancellazione propria" on public.measurements
   for delete to authenticated using (user_id = (select auth.uid()));
 
 -- ---------- Storage foto: bucket PRIVATO, cartella = id utente --------
--- Percorsi: <user_id>/<item_id>/photo.jpg | thumb.jpg | label.jpg
+-- Percorsi: <user_id>/<item_id>/photo-… | thumb-… | label-… | catalog-… | catalog-thumb-… (.jpg)
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('wardrobe', 'wardrobe', false, 5242880, array['image/jpeg', 'image/webp'])
 on conflict (id) do update

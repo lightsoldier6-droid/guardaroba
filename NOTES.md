@@ -5,7 +5,8 @@ iPhone (PWA statica su GitHub Pages) ⇄ Supabase (Auth, Postgres con RLS, Stora
 
 ```
 Safari/PWA ──(token utente)──▶ Supabase REST/Storage   (dati e foto, filtrati dalla RLS)
-          └─(token utente)──▶ Edge Function "ai" ──(OLLAMA_API_KEY, secret)──▶ ollama.com/api/chat
+          └─(token utente)──▶ Edge Function "ai" ──(OLLAMA_API_KEY, secret)──▶ ollama.com/api/chat, /api/web_search
+                                                └──▶ pagine prodotto e foto dei negozi (solo https pubblico)
           └────────────────▶ api.open-meteo.com      (nessuna chiave)
 ```
 
@@ -14,6 +15,9 @@ Safari/PWA ──(token utente)──▶ Supabase REST/Storage   (dati e foto, f
 - **Prima la cache locale**: l’app legge sempre da IndexedDB e accoda le modifiche (outbox) per inviarle appena c’è rete. Gli identificativi sono UUID generati sul telefono, quindi si possono creare capi anche offline.
 - **AI solo dove serve**: l’AI legge le foto (capo, etichetta, guida taglie). Outfit, punteggio d’acquisto e taglie sono calcolati sul telefono con regole trasparenti: risposte istantanee, gratis, funzionanti anche senza rete, e spiegabili.
 - **Output AI vincolato**: la Edge Function passa a Ollama uno schema JSON (`format`) con i soli codici ammessi; l’app scarta comunque qualunque valore fuori vocabolario e tu confermi ogni campo prima del salvataggio (i campi letti sono marcati “letto”).
+- **Ricerca online dall'etichetta**: dall'etichetta l'AI legge anche codice articolo, codice colore, nome colore, EAN e nome del modello. La funzione `ai` (azione `lookup`) cerca con `web_search` di Ollama (stessa chiave), scarica fino a 6 pagine e ne legge i dati strutturati (schema.org `Product`/`ProductGroup` con varianti, Open Graph). Livelli: **exact** = EAN con cifra di controllo valida, oppure codice articolo + codice colore; **model** = codice articolo trovato, colore da scegliere tra le varianti (quella col nome colore dell'etichetta è suggerita, mai applicata da sola); **possible** = stessa marca, scegli tu; **none**. Solo exact applica i dati senza chiedere. Il web riempie solo campi vuoti; composizione e taglia dell'etichetta prevalgono sempre. La foto di catalogo passa dalla funzione (azione `fetch_image`), viene compressa sul telefono come le altre e salvata nel bucket privato.
+- **Download sicuri**: la funzione scarica solo `https` verso host pubblici (niente IP, localhost, porte diverse da 443, credenziali nell'URL, indirizzi DNS privati), controlla ogni reindirizzamento, limita tempo (9 s pagina, 12 s foto) e dimensione (2,5 MB pagina, 8 MB foto) e verifica dai primi byte che la foto sia davvero un'immagine.
+- **Raffica**: le etichette fotografate in serie restano in coda in IndexedDB (store `batch`) e vengono lette e cercate una alla volta quando c'è rete e l'app è aperta. "Conferma tutti" salva solo le corrispondenze exact che hanno categoria e colore.
 - **Due modelli in cascata**: `gemma4:31b`, poi `glm-5.3-flash` se il primo fallisce o viene ritirato. Modificabile con il secret `OLLAMA_VISION_MODELS`, senza toccare il codice.
 - **Foto**: compresse in JPEG sul telefono prima dell’invio (archivio 1600 px, miniatura 480 px per le griglie, 1280 px per l’AI). Ogni sostituzione crea un nuovo file e cancella il vecchio, così le cache non mostrano mai foto superate.
 - **Accesso**: email e password su un unico utente creato a mano, iscrizioni chiuse. Il link magico via email è stato escluso perché su iPhone si aprirebbe in Safari e non nell’app installata.
@@ -26,7 +30,9 @@ Safari/PWA ──(token utente)──▶ Supabase REST/Storage   (dati e foto, f
 | `wear_log` | un capo indossato in un giorno | univoco per (capo, giorno); `outfit_id` raggruppa i capi indossati insieme |
 | `measurements` | una riga per giorno di aggiornamento | lo storico è la tabella stessa; l’ultima riga è la misura attuale |
 
-Foto nel bucket privato `wardrobe`: `<user_id>/<item_id>/photo-<timestamp>.jpg`, `thumb-…`, `label-…`; il percorso è salvato nella riga del capo.
+Colonne v2 di `items` (ricerca online): `article_code`, `color_code`, `ean`, `source_url`, `match_level` (`exact`, `model`, `chosen`), `list_price`, `catalog_photo_path`, `catalog_thumb_path`, `cover` (`own` o `catalog`: quale foto fa da copertina).
+
+Foto nel bucket privato `wardrobe`: `<user_id>/<item_id>/photo-<timestamp>.jpg`, `thumb-…`, `label-…`, `catalog-…`, `catalog-thumb-…`; il percorso è salvato nella riga del capo.
 Le etichette italiane e le regole (slot nell’outfit, peso, durata stimata) stanno in `js/taxonomy.js`: aggiungere una categoria non richiede modifiche al database. Va aggiunta anche all’elenco in `supabase/functions/ai/index.ts`.
 
 ## Come ragiona l’app
@@ -53,6 +59,13 @@ Le etichette italiane e le regole (slot nell’outfit, peso, durata stimata) sta
 - Simboli di lavaggio piccoli o consumati vengono letti male più spesso del testo; i colori dalle foto in negozio risentono della luce. Per questo ogni campo resta modificabile.
 - Il nome e la disponibilità dei modelli cloud di Ollama cambiano nel tempo: se un modello viene ritirato basta aggiornare `OLLAMA_VISION_MODELS`.
 
+**Ricerca online**
+- Molte grandi catene bloccano i download automatici delle pagine: in quel caso resta solo l'estratto della ricerca (niente foto né varianti) e il risultato conta solo se contiene il codice articolo.
+- Capi fuori produzione o di marchi piccoli spesso non si trovano: serve la foto del capo.
+- Senza foto del capo, il colore viene dal web (exact) o lo confermi tu; la mappatura dei nomi colore dei negozi (`colorFromName` in `js/taxonomy.js`) è a parole chiave e va controllata ("Blu" diventa blu, non navy).
+- Le foto di catalogo sono opera di marchi e fotografi: restano nel bucket privato per uso personale e non vanno ripubblicate.
+- Il prezzo di listino viene salvato solo se in euro.
+
 **Euristiche**
 - Costo per utilizzo e utilizzi annui sono stime: quando il registro “indossato” copre almeno 30 giorni l’app usa i tuoi dati reali per quel ruolo, prima di allora una stima per occasione e stagione.
 - Fantasie (righe, quadri) non sono considerate nell’armonia: l’app ragiona solo su colori dominanti e secondari.
@@ -63,7 +76,12 @@ Verificato in questa sessione:
 - Edge Function: type-check con Deno 2.9 e prova con JWT firmati e Ollama simulato (401 senza token o con token falsificato, preflight CORS, 403 con utente diverso da `ALLOWED_USER_ID`, passaggio al secondo modello se il primo risponde 404, nessuna chiave negli errori).
 - Interfaccia in Chromium headless a dimensione iPhone, con Supabase e AI simulati: accesso, catalogo con lettura etichetta, scheda capo, outfit del giorno e “indossato oggi”, misure e tabella taglie, modalità negozio fino a “L’ho comprato”, coda offline e invio al ritorno della rete, riavvio completamente offline dal service worker, tema scuro.
 
+Verificato nella sessione della ricerca online (ottobre 2026):
+- Edge Function: type-check Deno 2.9; parser su pagine di esempio (ProductGroup con varianti, Product singolo con REF in stile Zara, solo Open Graph, JSON-LD malformato); livelli di corrispondenza; checksum EAN; blocco di http, IP, localhost, porte, credenziali, reindirizzamenti verso indirizzi interni, file non immagine; flusso `lookup` completo con ricerca e negozi simulati (anche un negozio che blocca).
+- Interfaccia in Chromium headless a dimensione iPhone con backend simulato: corrispondenza esatta con foto di catalogo come copertina, scelta del colore, "Cambia colore", candidati incerti e "Nessuno", raffica di 4 etichette con conferma in blocco, coda offline che riparte al ritorno della rete, negozio con sconto sul prezzo pieno, tema scuro, nessun errore JavaScript.
+
 Non verificato (richiede i tuoi account o il tuo telefono):
+- Ricerche reali: quanti negozi rispondono e quanto spesso i codici letti portano a una corrispondenza exact.
 - Chiamate reali a Supabase e a Ollama Cloud: qualità della lettura delle etichette e tempi di risposta dei modelli.
 - Safari su iPhone reale (installazione sulla Home, fotocamera, geolocalizzazione, comportamento della cache).
 - I nomi esatti delle voci di menu nelle dashboard di Supabase e GitHub, che cambiano periodicamente.

@@ -155,3 +155,76 @@ export function textToComposition(text) {
     return isFinite(pct) ? { fiber: b.trim().toLowerCase(), pct } : null
   }).filter(Boolean)
 }
+
+// ---------- Dati presi dal web: nomi di colore, categorie e fibre ----------
+// Dal nome del colore di un negozio (italiano, inglese, francese, spagnolo, tedesco) al codice dell'app.
+// L'ordine conta: le voci più specifiche prima ("blu navy" prima di "blu", "grigio scuro" prima di "grigio").
+const COLOR_WORDS = [
+  [/navy|marine|blu ?(scuro|notte|marino)|dark ?blue|midnight|bleu ?(marine|nuit)|azul marino|dunkelblau/, 'navy'],
+  [/light ?blue|sky|celeste|azzurr|baby ?blue|bleu ciel|pale blue|hellblau|powder blue|oxford blue/, 'light_blue'],
+  [/denim|indigo|jeans|stone ?wash|washed/, 'denim'],
+  [/charcoal|antracite|anthra|dark ?gr[ae]y|grigio scuro|gris oscuro|gris fonce|dunkelgrau|slate/, 'charcoal'],
+  [/gr[ae]y|grigi|gris|grau|melange|mélange|ash|silver|argento|perla|pearl/, 'grey'],
+  [/black|nero|nera|noir|negro|schwarz|jet/, 'black'],
+  [/off ?white|ecru|écru|cream|crema|panna|ivory|avorio|natural|naturale|bone|chalk|latte|milk|vanilla/, 'cream'],
+  [/white|bianc|blanc|blanco|weiss|weiß|optic/, 'white'],
+  [/camel|cammello|tan\b|cognac|caramel|nocciola|hazel|tabacco|tobacco/, 'camel'],
+  [/beige|sand|sabbia|stone|pietra|khaki|kaki|taupe|corda|tortora|dove|greige|mastice/, 'beige'],
+  [/brown|marron|bruno|braun|cioccolat|chocolate|moro|coffee|caff|espresso|mocha|tortoise/, 'brown'],
+  [/olive|oliva|military|militare|army|loden/, 'olive'],
+  [/sage|salvia|mint|menta|pistacchio|pistachio/, 'sage'],
+  [/green|verd|vert|grün|grun|bottle|forest|smeraldo|emerald|petrolio|teal/, 'green'],
+  [/burgundy|bordeaux|bordò|bordo|wine|vino|oxblood|maroon|granata|amaranto|merlot/, 'burgundy'],
+  [/pink|rosa|rose|salmon|salmone|blush|cipria/, 'pink'],
+  [/red|ross|rouge|rojo|\brot\b|scarlet|cherry|corallo|coral/, 'red'],
+  [/yellow|giall|jaune|amarillo|gelb|mustard|senape|ocra|ochre|lemon/, 'yellow'],
+  [/orange|arancio|arancione|naranja|rust|ruggine|terracotta|mattone|brick|copper|rame/, 'orange'],
+  [/purple|viola|violet|lilla|lilac|lavender|lavanda|morado|lila|plum|prugna/, 'purple'],
+  [/blu|blue|bleu|azul|royal|cobalt|cobalto|bluette|ottanio/, 'blue'],
+]
+export function colorFromName(name) {
+  const s = String(name || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+  if (!s.trim()) return null
+  for (const [re, code] of COLOR_WORDS) if (re.test(s)) return code
+  return null
+}
+
+// Categoria dal titolo di una pagina prodotto (solo se l'etichetta non l'ha detta)
+const CATEGORY_WORDS = [
+  [/t-?shirt|tee\b|maglietta/, 'tshirt'], [/\bpolo\b/, 'polo'], [/camicia|shirt|chemise|camisa|hemd/, 'shirt'],
+  [/felpa|sweatshirt|hoodie|sweat\b/, 'sweatshirt'], [/gilet|vest\b|waistcoat|smanicato/, 'vest'],
+  [/maglion|cardigan|pullover|maglia|sweater|jumper|knit|dolcevita|turtleneck/, 'knit'],
+  [/blazer|giacca (sartoriale|doppiopetto|monopetto)|suit jacket|sport coat|sportcoat/, 'blazer'],
+  [/impermeabile|trench|raincoat|mac\b/, 'raincoat'], [/cappotto|coat|overcoat|montgomery|paletot|peacoat/, 'coat'],
+  [/giubbotto|giubbino|bomber|parka|piumino|jacket|giacca|blouson|field jacket|overshirt/, 'jacket'],
+  [/jeans|denim pant/, 'jeans'], [/bermuda|shorts|pantaloncin/, 'shorts'],
+  [/pantalon|trouser|chino|pants|cargo/, 'trousers'],
+  [/mocassin|loafer/, 'loafers'], [/sneaker|trainer/, 'sneakers'], [/running|trail|scarpe da corsa|sport shoe/, 'sport_shoes'],
+  [/stivalett|boot|chelsea|polacchin|anfibi/, 'boots'], [/sandal|ciabatt|infradito/, 'sandals'],
+  [/oxford shoe|derby|brogue|stringat|monk|francesin/, 'shoes_formal'],
+]
+export function categoryFromText(text) {
+  const s = String(text || '').toLowerCase()
+  for (const [re, code] of CATEGORY_WORDS) if (re.test(s)) return code
+  return null
+}
+
+// Fibre scritte in inglese sulle pagine dei negozi → nomi italiani usati nell'app
+const FIBER_IT = [
+  [/cotton/, 'cotone'], [/linen|flax/, 'lino'], [/merino wool/, 'lana merino'], [/wool/, 'lana'], [/cashmere/, 'cashmere'],
+  [/silk/, 'seta'], [/polyester/, 'poliestere'], [/polyamide|nylon/, 'poliammide'], [/elastane|spandex|lycra/, 'elastan'],
+  [/viscose|rayon/, 'viscosa'], [/lyocell|tencel/, 'lyocell'], [/modal/, 'modal'], [/leather/, 'pelle'], [/suede/, 'camoscio'],
+  [/acrylic/, 'acrilico'], [/alpaca/, 'alpaca'], [/mohair/, 'mohair'],
+]
+export function fiberToItalian(fiber) {
+  const f = String(fiber || '').trim().toLowerCase()
+  for (const [re, it] of FIBER_IT) if (re.test(f)) return it
+  return f
+}
+
+// Livello di corrispondenza con il web: codici salvati e testi mostrati
+export const MATCH_LEVEL = {
+  exact: 'Corrisponde: modello e colore',
+  model: 'Modello trovato, colore confermato da te',
+  chosen: 'Scelto da te tra i risultati',
+}
