@@ -46,6 +46,7 @@ export const COLORS = {
   blue:       { label: 'Blu',         hex: '#2f5fb3', neutral: false, hue: 220, l: 0.4 },
   light_blue: { label: 'Azzurro', forms: ['azzurro', 'azzurra', 'azzurri', 'azzurre'],     hex: '#a9c6e8', neutral: true,  hue: 210, l: 0.8 }, // nell'abbigliamento maschile l'azzurro chiaro fa da neutro
   olive:      { label: 'Verde oliva', hex: '#5d6234', neutral: false, hue: 65,  l: 0.35, soft: true },
+  sage:       { label: 'Verde salvia', hex: '#9caf88', neutral: false, hue: 95,  l: 0.66, soft: true },
   green:      { label: 'Verde', forms: ['verde', 'verde', 'verdi', 'verdi'],       hex: '#2f7a4b', neutral: false, hue: 140, l: 0.4 },
   burgundy:   { label: 'Bordeaux',    hex: '#6d1f2c', neutral: false, hue: 350, l: 0.22, soft: true },
   red:        { label: 'Rosso', forms: ['rosso', 'rossa', 'rossi', 'rosse'],       hex: '#c0302b', neutral: false, hue: 2,   l: 0.45 },

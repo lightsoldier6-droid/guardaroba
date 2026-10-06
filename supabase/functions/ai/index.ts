@@ -30,7 +30,7 @@ const CATEGORIES = [
 ]
 const COLORS = [
   'black', 'charcoal', 'grey', 'white', 'cream', 'beige', 'camel', 'brown',
-  'navy', 'blue', 'light_blue', 'denim', 'olive', 'green', 'burgundy', 'red',
+  'navy', 'blue', 'light_blue', 'denim', 'olive', 'sage', 'green', 'burgundy', 'red',
   'pink', 'yellow', 'orange', 'purple',
 ]
 const SYSTEMS = ['IT', 'EU', 'UK', 'US', 'LETTER']
@@ -116,7 +116,7 @@ function analyzePrompt(hasPhoto: boolean, hasLabel: boolean): string {
 Estrai i dati e rispondi SOLO con JSON conforme allo schema. Regole:
 - category: uno tra ${CATEGORIES.join(', ')}. blazer = giacca sartoriale; jacket = giubbotto/bomber/giacca casual; knit = maglione o cardigan; vest = gilet. Se non riconoscibile: 'unknown'.
 - kind: 'footwear' per le scarpe, altrimenti 'garment'.
-- color_primary e colors_secondary: dal capo intero (non dall'etichetta). Codici ammessi: ${COLORS.join(', ')} ('unknown' se non visibile). navy = blu scuro; denim = blu jeans. Massimo 3 colori secondari, solo se ben visibili.
+- color_primary e colors_secondary: dal capo intero (non dall'etichetta). Codici ammessi: ${COLORS.join(', ')} ('unknown' se non visibile). navy = blu scuro; denim = blu jeans; sage = verde salvia (verde grigiastro chiaro e smorzato); olive = verde oliva (scuro, tendente al marrone). Massimo 3 colori secondari, solo se ben visibili.
 - composition: fibre e percentuali come scritte in etichetta, fibra in italiano minuscolo (es. cotone, lana, elastan, poliestere, lino, cashmere, viscosa). Lista vuota se illeggibile.
 - sizes: TUTTE le taglie leggibili sull'etichetta con il loro sistema: IT, EU, UK, US, oppure LETTER per XS/S/M/L/XL. Per i pantaloni US scrivi la label come "W32 L34" o "32". Le taglie camicia in cm (es. 41) sono IT. Se il sistema non è indicato e il numero è tipico italiano (44-60) usa IT. Lista vuota se non leggibile.
 - fit: vestibilità se scritta (es. slim, regular, comfort, tailored), altrimenti stringa vuota.
