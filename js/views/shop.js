@@ -38,15 +38,24 @@ export function render(root, { go }) {
   async function readPhotos() {
     if (busy || (!photos.photo && !photos.label)) return
     collect(); busy = true; msg = 'Lettura in corso…'; build()
+    let r = null
     try {
-      const r = await analyze({ photo: photos.photo ? await toBase64(photos.photo.ai) : null, label: photos.label ? await toBase64(photos.label.ai) : null })
+      r = await analyze({ photo: photos.photo ? await toBase64(photos.photo.ai) : null, label: photos.label ? await toBase64(photos.label.ai) : null })
+    } catch (e) { msg = e.message }
+    collect() // conserva le scelte fatte durante l'attesa
+    if (r) {
       const f = r.fields
+      const prev = cand.aiFields || {}
       cand.aiFields = f
-      for (const k of ['category', 'color_primary', 'size_system', 'fabric']) if (f[k]) cand[k] = f[k]
-      for (const k of ['colors_secondary', 'seasons', 'occasions']) if (f[k]?.length) cand[k] = f[k]
-      if (f.brand && !cand.brand) cand.brand = f.brand
+      const isEmpty = (v) => v == null || v === '' || (Array.isArray(v) && !v.length)
+      const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
+      for (const k of ['category', 'color_primary', 'size_system', 'fabric', 'colors_secondary', 'seasons', 'occasions', 'brand']) {
+        if (!isEmpty(f[k]) && (isEmpty(cand[k]) || same(cand[k], prev[k]))) cand[k] = f[k]
+      }
       msg = 'Controlla categoria, colori, stagioni e occasioni, poi valuta.'
-    } catch (e) { msg = e.message } finally { busy = false; build() }
+    }
+    busy = false
+    build()
   }
 
   async function readGuide() {
@@ -54,9 +63,10 @@ export function render(root, { go }) {
     collect(); guideMsg = 'Lettura della guida taglie…'; build()
     try {
       guide = await readSizeGuide(await toBase64(photos.guide.ai))
+      collect()
       guideMsg = guide?.rows?.length ? `Guida letta: ${guide.rows.length} taglie${guide.system ? ` (${SIZE_SYSTEMS[guide.system]})` : ''}.` : 'Non sono riuscito a leggere la tabella: riprova con una foto più dritta.'
       if (guide?.system && !cand.size_system) cand.size_system = guide.system
-    } catch (e) { guideMsg = e.message } finally { build() }
+    } catch (e) { collect(); guideMsg = e.message } finally { build() }
   }
 
   function run() {

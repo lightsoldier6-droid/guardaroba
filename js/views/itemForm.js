@@ -20,6 +20,7 @@ export function render(root, { go, params }) {
   const pending = { photo: null, label: null }
   if (isNew && handoff) { Object.assign(draft, handoff.fields || {}); pending.photo = handoff.photo || null; pending.label = handoff.label || null; handoff = null }
   const aiFilled = new Set()
+  const aiValues = new Map() // ultimo valore messo dall'AI per campo: se non l'hai cambiato, una nuova lettura può aggiornarlo
   let aiBusy = false, aiMsg = ''
 
   const form = h('form', { class: 'itemform', novalidate: true, onsubmit: (e) => { e.preventDefault(); save() } })
@@ -30,20 +31,26 @@ export function render(root, { go, params }) {
     if (aiBusy || (!pending.photo && !pending.label)) return
     collect()
     aiBusy = true; aiMsg = 'Lettura delle foto in corso…'; build()
+    let res = null
     try {
-      const res = await analyze({
+      res = await analyze({
         photo: pending.photo ? await toBase64(pending.photo.ai) : null,
         label: pending.label ? await toBase64(pending.label.ai) : null,
       })
+    } catch (e) { aiMsg = e.message }
+    // prima conserva ciò che hai scelto mentre l'AI rispondeva, poi compila solo campi vuoti o lasciati com'erano
+    collect()
+    if (res) {
       for (const [k, v] of Object.entries(res.fields)) {
         const empty = v == null || (Array.isArray(v) && !v.length)
         const curEmpty = draft[k] == null || draft[k] === '' || (Array.isArray(draft[k]) && !draft[k].length)
-        if (!empty && (isNew || curEmpty)) { draft[k] = v; aiFilled.add(k) }
+        const untouchedAI = aiValues.has(k) && aiValues.get(k) === JSON.stringify(draft[k] ?? null)
+        if (!empty && (curEmpty || untouchedAI)) { draft[k] = v; aiFilled.add(k); aiValues.set(k, JSON.stringify(v)) }
       }
       aiMsg = res.readable || !pending.label ? 'Dati letti: controlla i campi segnati e correggi se serve.' : 'Etichetta poco leggibile: controlla bene i campi.'
-    } catch (e) {
-      aiMsg = e.message
-    } finally { aiBusy = false; build() }
+    }
+    aiBusy = false
+    build()
   }
 
   function collect() {

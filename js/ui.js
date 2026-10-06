@@ -60,46 +60,59 @@ export function toast(msg, { action, onAction, ms = 3200 } = {}) {
 }
 
 // Gruppo di scelte (singola o multipla) — restituisce elemento con .value
-export function choices(dict, value, { multi = false, onchange, hints } = {}) {
+// Gruppi di opzioni: al tocco si aggiorna solo lo stato dei pulsanti, senza ricostruirli.
+// (Ricostruirli durante il tocco faceva "rimbalzare" il clic sulla prima opzione del gruppo.)
+function optionGroup(wrap, entries, build, { multi, value, onchange }) {
   let cur = multi ? new Set(value || []) : value ?? null
-  const wrap = h('div', { class: 'choices', role: multi ? 'group' : 'radiogroup' })
-  const render = () => {
-    wrap.replaceChildren(...Object.entries(dict).map(([k, label]) => {
-      const on = multi ? cur.has(k) : cur === k
-      return h('button', {
-        type: 'button', class: 'choice' + (on ? ' on' : ''), 'aria-pressed': String(on),
-        onclick: () => {
-          if (multi) { cur.has(k) ? cur.delete(k) : cur.add(k) } else cur = cur === k ? null : k
-          render(); onchange?.(wrap.value)
-        },
-      }, label, hints?.[k] ? h('small', null, hints[k]) : null)
-    }))
+  const isOn = (k) => (multi ? cur.has(k) : cur === k)
+  const paint = () => wrap.querySelectorAll('button[data-k]').forEach((b) => {
+    const on = isOn(b.dataset.k)
+    b.classList.toggle('on', on)
+    b.setAttribute('aria-pressed', String(on))
+  })
+  const toggle = (k) => {
+    if (multi) { cur.has(k) ? cur.delete(k) : cur.add(k) } else cur = cur === k ? null : k
+    paint(); onchange?.(wrap.value)
   }
+  const rebuild = () => { wrap.replaceChildren(...entries().map(([k, v]) => {
+    const b = build(k, v)
+    b.dataset.k = k
+    b.type = 'button'
+    b.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); toggle(k) })
+    return b
+  })); paint() }
   Object.defineProperty(wrap, 'value', {
     get: () => (multi ? [...cur] : cur),
-    set: (v) => { cur = multi ? new Set(v || []) : v ?? null; render() },
+    set: (v) => { cur = multi ? new Set(v || []) : v ?? null; paint() },
   })
-  render()
+  wrap.refresh = rebuild
+  rebuild()
   return wrap
+}
+
+export function choices(dict, value, { multi = false, onchange, hints } = {}) {
+  const wrap = h('div', { class: 'choices', role: 'group' })
+  return optionGroup(wrap, () => Object.entries(dict),
+    (k, label) => h('button', { class: 'choice' }, label, hints?.[k] ? h('small', null, hints[k]) : null),
+    { multi, value, onchange })
 }
 
 export function swatches(value, { multi = false, onchange, exclude } = {}) {
-  let cur = multi ? new Set(value || []) : value ?? null
-  const wrap = h('div', { class: 'swatches' })
-  const render = () => wrap.replaceChildren(...Object.entries(COLORS).filter(([k]) => k !== exclude?.()).map(([k, c]) => {
-    const on = multi ? cur.has(k) : cur === k
-    return h('button', {
-      type: 'button', class: 'sw' + (on ? ' on' : ''), title: c.label, 'aria-label': c.label, 'aria-pressed': String(on),
-      onclick: () => { if (multi) { cur.has(k) ? cur.delete(k) : cur.add(k) } else cur = cur === k ? null : k; render(); onchange?.(wrap.value) },
-    }, h('i', { style: { background: c.hex } }), h('span', null, c.label))
-  }))
-  Object.defineProperty(wrap, 'value', { get: () => (multi ? [...cur] : cur), set: (v) => { cur = multi ? new Set(v || []) : v ?? null; render() } })
-  wrap.refresh = render
-  render()
-  return wrap
+  const wrap = h('div', { class: 'swatches', role: 'group' })
+  return optionGroup(wrap, () => Object.entries(COLORS).filter(([k]) => k !== exclude?.()),
+    (k, c) => h('button', { class: 'sw', title: c.label, 'aria-label': c.label }, h('i', { style: { background: c.hex } }), h('span', null, c.label)),
+    { multi, value, onchange })
 }
 
-export const field = (label, control, hint) => h('label', { class: 'field' }, h('span', { class: 'flabel' }, label), control, hint ? h('span', { class: 'fhint' }, hint) : null)
+// <label> solo per i campi nativi; i gruppi di pulsanti stanno in un <div> (dentro un <label> i tocchi vengono inoltrati al primo pulsante)
+let fieldSeq = 0
+export function field(label, control, hint) {
+  const native = control instanceof HTMLInputElement || control instanceof HTMLSelectElement || control instanceof HTMLTextAreaElement
+  if (native) return h('label', { class: 'field' }, h('span', { class: 'flabel' }, label), control, hint ? h('span', { class: 'fhint' }, hint) : null)
+  const id = `fl-${++fieldSeq}`
+  if (control.setAttribute) control.setAttribute('aria-labelledby', id)
+  return h('div', { class: 'field' }, h('span', { class: 'flabel', id }, label), control, hint ? h('span', { class: 'fhint' }, hint) : null)
+}
 export const section = (title, ...children) => h('section', { class: 'sec' }, title ? h('h2', null, title) : null, ...children)
 
 export function thumb(item, cls = '') {

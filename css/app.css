@@ -46,7 +46,7 @@ h2 { font-size: 21px; line-height: 1.2; }
 h3 { font-size: 18px; }
 p { margin: .4em 0; }
 a { color: inherit; }
-button { font: inherit; color: inherit; }
+button { font: inherit; color: inherit; touch-action: manipulation; }
 :focus-visible { outline: 2px solid var(--rust); outline-offset: 2px; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .muted { color: var(--thread); }
