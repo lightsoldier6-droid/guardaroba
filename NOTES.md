@@ -80,8 +80,11 @@ Verificato nella sessione della ricerca online (ottobre 2026):
 - Edge Function: type-check Deno 2.9; parser su pagine di esempio (ProductGroup con varianti, Product singolo con REF in stile Zara, solo Open Graph, JSON-LD malformato); livelli di corrispondenza; checksum EAN; blocco di http, IP, localhost, porte, credenziali, reindirizzamenti verso indirizzi interni, file non immagine; flusso `lookup` completo con ricerca e negozi simulati (anche un negozio che blocca).
 - Interfaccia in Chromium headless a dimensione iPhone con backend simulato: corrispondenza esatta con foto di catalogo come copertina, scelta del colore, "Cambia colore", candidati incerti e "Nessuno", raffica di 4 etichette con conferma in blocco, coda offline che riparte al ritorno della rete, negozio con sconto sul prezzo pieno, tema scuro, nessun errore JavaScript.
 
+- Prove reali dopo la pubblicazione (6 ottobre 2026): Levi's 501 `00501-0101` → "model" in ~5 s, 4 pagine con foto (negozi esteri); Lacoste L1212 colore 166 → "exact" dai siti ufficiali Lacoste. Corretto un caso reale: varianti di sola taglia (24 su una pagina) ora unite in una sola.
+
 Non verificato (richiede i tuoi account o il tuo telefono):
-- Ricerche reali: quanti negozi rispondono e quanto spesso i codici letti portano a una corrispondenza exact.
+- Quanto spesso, su etichette vere fotografate con l'iPhone, i codici letti portano a "exact".
+- Spesso i primi risultati sono negozi esteri: il prezzo di listino viene salvato solo se in euro e i nomi dei colori possono essere in altre lingue (in quel caso il colore va scelto a mano).
 - Chiamate reali a Supabase e a Ollama Cloud: qualità della lettura delle etichette e tempi di risposta dei modelli.
 - Safari su iPhone reale (installazione sulla Home, fotocamera, geolocalizzazione, comportamento della cache).
 - I nomi esatti delle voci di menu nelle dashboard di Supabase e GitHub, che cambiano periodicamente.
