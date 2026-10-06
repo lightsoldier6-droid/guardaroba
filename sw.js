@@ -1,7 +1,7 @@
 // Service worker: rende l'app installabile e utilizzabile con rete scarsa.
 // File dell'app: rete prima (con timeout breve), poi copia locale. Font: copia locale.
 // Le chiamate a Supabase, AI e meteo NON passano dalla cache: le gestisce l'app.
-const VERSION = 'guardaroba-v2'
+const VERSION = 'guardaroba-v3'
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './css/app.css', './vendor/supabase.js',
   './js/app.js', './js/config.js', './js/store.js', './js/idb.js', './js/images.js', './js/weather.js', './js/ai.js',
@@ -13,7 +13,8 @@ const SHELL = [
 const FONT_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com']
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()))
+  // 'reload' scavalca la cache HTTP del browser: una nuova versione installa sempre i file appena pubblicati
+  e.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting()))
 })
 
 self.addEventListener('activate', (e) => {
@@ -41,7 +42,9 @@ self.addEventListener('fetch', (e) => {
 
   e.respondWith((async () => {
     const cache = await caches.open(VERSION)
-    const fromNet = fetch(req).then((res) => {
+    // 'no-cache' ricontrolla sempre col server (GitHub Pages fa durare la cache HTTP 10 minuti)
+    const fresh = req.mode === 'navigate' ? fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' }) : fetch(new Request(req, { cache: 'no-cache' }))
+    const fromNet = fresh.then((res) => {
       if (res.ok) cache.put(req, res.clone())
       return res
     })
