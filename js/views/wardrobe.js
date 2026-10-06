@@ -1,6 +1,6 @@
 import { h, put, add, icon, toast, thumb, fmtDate } from '../ui.js'
 import { state, upsert, patch, remove, removeFiles, uuid } from '../store.js'
-import { CATEGORIES, COLORS, SEASONS, OCCASIONS, FIT_FEEL, WARMTH, SIZE_SYSTEMS, compositionToText } from '../taxonomy.js'
+import { CATEGORIES, COLORS, FABRICS, SEASONS, OCCASIONS, FIT_FEEL, WARMTH, SIZE_SYSTEMS, compositionToText } from '../taxonomy.js'
 import { itemName, slotOf, toDay, daysBetween, wearStats } from '../outfit.js'
 import { hydrate } from '../images.js'
 
@@ -14,9 +14,9 @@ export function render(root, { go, rerender }) {
   const q = query.trim().toLowerCase()
   const list = state.items.filter((i) => (showArchived ? i.archived : !i.archived)
     && (filter === 'all' || slotOf(i) === filter)
-    && (!q || [i.name, i.brand, CATEGORIES[i.category]?.label, COLORS[i.color_primary]?.label].some((s) => s?.toLowerCase().includes(q))))
+    && (!q || [i.name, i.brand, CATEGORIES[i.category]?.label, COLORS[i.color_primary]?.label, FABRICS[i.fabric]?.label].some((s) => s?.toLowerCase().includes(q))))
 
-  const search = h('input', { type: 'search', placeholder: 'Cerca per marca, nome, colore', value: query, enterkeyhint: 'search',
+  const search = h('input', { type: 'search', placeholder: 'Cerca per marca, nome, colore, tessuto', value: query, enterkeyhint: 'search',
     oninput: (e) => { query = e.target.value; clearTimeout(search.t); search.t = setTimeout(() => { rerender(); document.querySelector('.view input[type=search]')?.focus() }, 250) } })
 
   add(root, 
@@ -46,6 +46,7 @@ export function renderItem(root, { go, params }) {
     ['Taglia', it.size_label ? `${it.size_label} ${SIZE_SYSTEMS[it.size_system] || ''}`.trim() + ((it.size_alt || []).length ? ` (${it.size_alt.map((s) => `${s.label} ${SIZE_SYSTEMS[s.system]}`).join(', ')})` : '') : null],
     ['Vestibilità', it.fit],
     ['Come ti veste', FIT_FEEL[it.fit_feel]],
+    ['Tessuto', FABRICS[it.fabric]?.label],
     ['Composizione', compositionToText(it.composition)],
     ['Peso', WARMTH[it.warmth]],
     ['Stagioni', (it.seasons || []).map((s) => SEASONS[s]).join(', ')],

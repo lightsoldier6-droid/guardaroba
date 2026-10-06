@@ -36,6 +36,7 @@ create table if not exists public.items (
   color_primary    text,                          -- codice colore, es. 'navy'
   colors_secondary text[] not null default '{}',
   composition      jsonb not null default '[]',   -- [{"fiber":"cotone","pct":98}, ...]
+  fabric           text,                          -- tessuto prevalente: cotton, linen, wool, cashmere, silk, leather, suede...
   fit              text,                          -- vestibilità da etichetta: slim, regular, comfort...
   size_label       text,                          -- es. '50', 'M', '41', 'W32 L34', '9.5'
   size_system      text check (size_system in ('IT', 'EU', 'UK', 'US', 'LETTER')),
@@ -57,6 +58,9 @@ create table if not exists public.items (
   created_at       timestamptz not null default now(),
   updated_at       timestamptz not null default now()
 );
+
+-- aggiunte successive (idempotenti, per database già creati)
+alter table public.items add column if not exists fabric text;
 
 create index if not exists items_user_idx on public.items (user_id);
 

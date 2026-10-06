@@ -55,6 +55,41 @@ export const COLORS = {
   purple:     { label: 'Viola',       hex: '#5e3f8a', neutral: false, hue: 275, l: 0.33 },
 }
 
+// Tessuto prevalente. warmth: correzione del peso se non indicato; cold/heat/rain: comportamento col meteo
+export const FABRICS = {
+  cotton:    { label: 'Cotone' },
+  linen:     { label: 'Lino', warmth: -1, noCold: true },
+  wool:      { label: 'Lana', warmth: 1, noHeat: true },
+  cashmere:  { label: 'Cashmere', warmth: 1, noHeat: true },
+  silk:      { label: 'Seta' },
+  viscose:   { label: 'Viscosa' },
+  polyester: { label: 'Poliestere' },
+  polyamide: { label: 'Nylon' },
+  leather:   { label: 'Pelle' },
+  suede:     { label: 'Scamosciato', badInRain: true },
+  canvas:    { label: 'Tela', badInRain: true },
+  other:     { label: 'Altro' },
+}
+const FIBER_MAP = [
+  [/cashmere|cachemire|kashmir/, 'cashmere'], [/lino|linen/, 'linen'], [/lana|wool|merino|alpaca|mohair|cammello/, 'wool'],
+  [/cotone|cotton|denim/, 'cotton'], [/seta|silk/, 'silk'], [/viscosa|viscose|rayon|modal|lyocell|tencel|cupro/, 'viscose'],
+  [/poliestere|polyester/, 'polyester'], [/poliammide|polyamide|nylon/, 'polyamide'],
+  [/camoscio|scamosciat|suede/, 'suede'], [/pelle|cuoio|leather/, 'leather'], [/tela|canvas/, 'canvas'],
+]
+const STRETCH = /elast|spandex|lycra/
+export function fabricFromFiber(fiber) {
+  const f = String(fiber || '').toLowerCase()
+  for (const [re, code] of FIBER_MAP) if (re.test(f)) return code
+  return null
+}
+// Fibra prevalente della composizione (l'elastan non conta, a meno che sia l'unica)
+export function fabricFromComposition(comp) {
+  const list = (comp || []).filter((c) => !STRETCH.test(String(c.fiber).toLowerCase()))
+  if (!list.length) return null
+  const main = [...list].sort((a, b) => b.pct - a.pct)[0]
+  return fabricFromFiber(main.fiber) || 'other'
+}
+
 export const SEASONS = { spring: 'Primavera', summer: 'Estate', autumn: 'Autunno', winter: 'Inverno' }
 export const OCCASIONS = { formal: 'Lavoro formale', work: 'Lavoro informale', casual: 'Casual', sport: 'Sport' }
 export const OCCASION_HINT = { formal: 'Riunioni, CdA', work: 'Ufficio', casual: 'Tempo libero', sport: 'Allenamento' }

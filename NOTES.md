@@ -22,7 +22,7 @@ Safari/PWA ──(token utente)──▶ Supabase REST/Storage   (dati e foto, f
 ## Modello dati (riusabile da un’app nativa senza migrazioni)
 | Tabella | Contenuto | Note |
 |---|---|---|
-| `items` | capi e calzature | codici stabili in inglese per categoria (`shirt`, `blazer`…), colori (`navy`…), stagioni (`spring`…), occasioni (`formal`, `work`, `casual`, `sport`), “come ti veste” (`tight`, `right`, `loose`), sistema taglie (`IT`, `EU`, `UK`, `US`, `LETTER`). `composition` è JSON `[{fiber,pct}]`, `size_alt` le altre taglie lette in etichetta |
+| `items` | capi e calzature | codici stabili in inglese per categoria (`shirt`, `blazer`…), colori (`navy`…), stagioni (`spring`…), occasioni (`formal`, `work`, `casual`, `sport`), “come ti veste” (`tight`, `right`, `loose`), sistema taglie (`IT`, `EU`, `UK`, `US`, `LETTER`). `composition` è JSON `[{fiber,pct}]`, `size_alt` le altre taglie lette in etichetta; `fabric` il tessuto prevalente (`cotton`, `linen`, `wool`, `cashmere`, `silk`, `leather`, `suede`…), ricavato dalla composizione e modificabile |
 | `wear_log` | un capo indossato in un giorno | univoco per (capo, giorno); `outfit_id` raggruppa i capi indossati insieme |
 | `measurements` | una riga per giorno di aggiornamento | lo storico è la tabella stessa; l’ultima riga è la misura attuale |
 
@@ -31,6 +31,7 @@ Le etichette italiane e le regole (slot nell’outfit, peso, durata stimata) sta
 
 ## Come ragiona l’app
 - **Outfit del giorno** (`js/outfit.js`): filtra per occasione e meteo (niente shorts sotto i 19°, niente cappotto sopra i 18°…), dà a ogni capo un punteggio di rotazione (penalizzato se indossato negli ultimi 3 giorni, premiato se fermo da settimane) e di stagione, poi combina sopra/sotto/scarpe con strati facoltativi e sceglie le 3 combinazioni migliori e diverse tra loro. Pesi: 40% capi (rotazione e stagione), 30% armonia dei colori, 30% calore adatto alla temperatura percepita, più correzioni per pioggia e vento.
+- **Tessuto**: se non hai indicato il peso, il lino alleggerisce e lana o cashmere appesantiscono il capo; il lino è escluso sotto i 15° percepiti, lana e cashmere sopra i 26°; scarpe scamosciate o in tela sono penalizzate con la pioggia. In negozio, stesso capo e colore ma tessuto diverso conta come simile, non come doppione.
 - **Armonia dei colori**: neutri (nero, grigi, blu navy, beige, marrone, azzurro, denim…) liberi; al massimo un colore d’accento è l’ideale, due funzionano se vicini, complementari o di luminosità molto diversa; penalità per nero con blu navy e per scarpe marroni con pantaloni neri.
 - **Punteggio in negozio** (`js/shopping.js`): 35% outfit nuovi validi che il capo sblocca con ciò che hai (combinazioni sopra/sotto/scarpe, più giacca per il formale, con armonia sufficiente), 30% bisogno (vuoti stagione×occasione meno doppioni), 15% copertura di stagioni e occasioni, 20% costo per utilizzo. Verdetto: ≥68 compralo, 45–67 valuta, sotto lascia perdere; un doppione senza vuoti da riempire non supera 55.
 - **Taglie** (`js/sizes.js`): la taglia “ideale” di ogni capo è quella indossata corretta di uno scalino se ti va stretta o larga. Ordine delle fonti per la taglia da provare: storico della stessa marca → guida taglie fotografata → tua taglia abituale su altre marche → stima dalle misure. L’affidabilità sale quando due fonti indipendenti concordano.

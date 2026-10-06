@@ -2,7 +2,7 @@
 // Qui non c'è nessuna chiave Ollama: il browser invia solo il token di sessione dell'utente.
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from './config.js'
 import { sb } from './store.js'
-import { CATEGORIES, COLORS, SEASONS, OCCASIONS, SIZE_SYSTEMS } from './taxonomy.js'
+import { CATEGORIES, COLORS, SEASONS, OCCASIONS, SIZE_SYSTEMS, fabricFromComposition } from './taxonomy.js'
 
 async function call(body, ms = 90000) {
   if (!navigator.onLine) throw new Error('Sei offline: compila i campi a mano, li puoi correggere dopo.')
@@ -36,6 +36,7 @@ export async function analyze({ photo, label }) {
   const { result: r, model } = await call({ action: 'analyze', photo, label })
   const sizes = (r.sizes || []).filter((s) => s && s.label && s.system in SIZE_SYSTEMS).map((s) => ({ system: s.system, label: String(s.label).trim() }))
   const category = pick(r.category, CATEGORIES)
+  const composition = (r.composition || []).filter((c) => c?.fiber && isFinite(c.pct)).map((c) => ({ fiber: String(c.fiber).toLowerCase(), pct: Number(c.pct) }))
   return {
     model,
     readable: r.label_readable !== false,
@@ -45,7 +46,8 @@ export async function analyze({ photo, label }) {
       brand: r.brand?.trim() || null,
       color_primary: pick(r.color_primary, COLORS),
       colors_secondary: pickAll(r.colors_secondary, COLORS).filter((c) => c !== r.color_primary).slice(0, 3),
-      composition: (r.composition || []).filter((c) => c?.fiber && isFinite(c.pct)).map((c) => ({ fiber: String(c.fiber).toLowerCase(), pct: Number(c.pct) })),
+      composition,
+      fabric: fabricFromComposition(composition),
       fit: r.fit?.trim() || null,
       size_label: sizes[0]?.label || null,
       size_system: sizes[0]?.system || null,

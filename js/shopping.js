@@ -17,7 +17,8 @@ export function duplicates(candidate, items) {
     const overlap = !it.seasons?.length || it.seasons.some((s) => seasons.includes(s))
     if (!overlap) continue
     const sameColor = it.color_primary && it.color_primary === candidate.color_primary
-    if (it.category === candidate.category && sameColor) same.push(it)
+    const fabricDiffers = it.fabric && candidate.fabric && it.fabric !== candidate.fabric
+    if (it.category === candidate.category && sameColor && !fabricDiffers) same.push(it)
     else if (sameColor || (it.category === candidate.category && COLORS[it.color_primary]?.neutral && COLORS[candidate.color_primary]?.neutral
       && Math.abs(COLORS[it.color_primary].l - COLORS[candidate.color_primary].l) < 0.15)) similar.push(it)
   }

@@ -1,10 +1,10 @@
 import { h, put, add, toast, choices, swatches, field, section, photoPicker } from '../ui.js'
 import { state, upsert, upload, removeFiles, uuid } from '../store.js'
-import { CATEGORIES, SEASONS, OCCASIONS, OCCASION_HINT, FIT_FEEL, WARMTH, SIZE_SYSTEMS, compositionToText, textToComposition } from '../taxonomy.js'
+import { CATEGORIES, SEASONS, OCCASIONS, OCCASION_HINT, FIT_FEEL, WARMTH, SIZE_SYSTEMS, FABRICS, compositionToText, textToComposition, fabricFromComposition } from '../taxonomy.js'
 import { prepare, toBase64, imageURL } from '../images.js'
 import { analyze } from '../ai.js'
 
-const FIELDS = ['kind', 'category', 'name', 'brand', 'color_primary', 'colors_secondary', 'composition', 'fit', 'size_label', 'size_system',
+const FIELDS = ['kind', 'category', 'name', 'brand', 'color_primary', 'colors_secondary', 'composition', 'fabric', 'fit', 'size_label', 'size_system',
   'size_alt', 'care', 'warmth', 'seasons', 'occasions', 'fit_feel', 'price', 'purchased_on', 'photo_path', 'thumb_path', 'label_photo_path', 'notes', 'archived']
 
 let handoff = null // dati passati dalla modalità shopping
@@ -63,6 +63,7 @@ export function render(root, { go, params }) {
     draft.seasons = ctl.seasons.value
     draft.occasions = ctl.occasions.value
     draft.fit_feel = ctl.fitFeel.value
+    draft.fabric = ctl.fabric.value || fabricFromComposition(draft.composition)
     draft.price = ctl.price.value === '' ? null : Number(String(ctl.price.value).replace(',', '.'))
     draft.purchased_on = ctl.purchased.value || null
     draft.notes = ctl.notes.value.trim() || null
@@ -83,7 +84,9 @@ export function render(root, { go, params }) {
       brand: h('input', { type: 'text', value: draft.brand || '', autocomplete: 'off', autocapitalize: 'words', list: 'brands' }),
       color: swatches(draft.color_primary, { onchange: () => ctl.colors2.refresh() }),
       colors2: null,
-      composition: h('input', { type: 'text', value: compositionToText(draft.composition), placeholder: '98% cotone, 2% elastan' }),
+      composition: h('input', { type: 'text', value: compositionToText(draft.composition), placeholder: '98% cotone, 2% elastan',
+        onchange: (e) => { const f = fabricFromComposition(textToComposition(e.target.value)); if (f && !ctl.fabric.value) ctl.fabric.value = f } }),
+      fabric: choices(Object.fromEntries(Object.entries(FABRICS).map(([k, v]) => [k, v.label])), draft.fabric),
       fit: h('input', { type: 'text', value: draft.fit || '', list: 'fits', placeholder: 'slim, regular…' }),
       size: h('input', { type: 'text', value: draft.size_label || '', placeholder: '50, M, 41, W32 L34', autocapitalize: 'characters' }),
       system: sysSelect,
@@ -121,6 +124,7 @@ export function render(root, { go, params }) {
         field(lab('Colori secondari', 'colors_secondary'), ctl.colors2)),
       section('Etichetta',
         field(lab('Composizione', 'composition'), ctl.composition),
+        field(lab('Tessuto', 'fabric'), ctl.fabric, 'Il prevalente: si compila dalla composizione, puoi cambiarlo.'),
         h('div', { class: 'row2' }, field(lab('Taglia', 'size_label'), ctl.size), field(lab('Sistema', 'size_system'), ctl.system)),
         (draft.size_alt || []).length ? h('p', { class: 'fhint' }, 'Altre taglie in etichetta: ', draft.size_alt.map((s) => `${s.label} ${SIZE_SYSTEMS[s.system]}`).join(', ')) : null,
         field(lab('Vestibilità', 'fit'), ctl.fit),

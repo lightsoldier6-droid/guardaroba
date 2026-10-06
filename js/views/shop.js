@@ -1,13 +1,13 @@
 import { h, put, add, toast, choices, swatches, field, section, photoPicker, thumb, verdictSymbol } from '../ui.js'
 import { state, latestMeasures } from '../store.js'
-import { CATEGORIES, SEASONS, OCCASIONS, OCCASION_HINT, SIZE_SYSTEMS } from '../taxonomy.js'
+import { CATEGORIES, SEASONS, OCCASIONS, OCCASION_HINT, SIZE_SYSTEMS, FABRICS } from '../taxonomy.js'
 import { prepare, toBase64, hydrate } from '../images.js'
 import { analyze, readSizeGuide } from '../ai.js'
 import { evaluate } from '../shopping.js'
 import { itemName } from '../outfit.js'
 import { setDraft } from './itemForm.js'
 
-const blank = () => ({ category: null, color_primary: null, colors_secondary: [], seasons: [], occasions: [], price: null, brand: '', size_system: null, aiFields: null })
+const blank = () => ({ category: null, color_primary: null, colors_secondary: [], seasons: [], occasions: [], price: null, brand: '', size_system: null, fabric: null, aiFields: null })
 let cand = blank()
 let photos = { photo: null, label: null, guide: null }
 let guide = null
@@ -29,6 +29,7 @@ export function render(root, { go }) {
     cand.seasons = ctl.seasons.value
     cand.occasions = ctl.occasions.value
     cand.size_system = ctl.system.value || null
+    cand.fabric = ctl.fabric.value
     cand.brand = ctl.brand.value.trim()
     const p = parseFloat(String(ctl.price.value).replace(',', '.'))
     cand.price = isFinite(p) && p > 0 ? p : null
@@ -41,7 +42,7 @@ export function render(root, { go }) {
       const r = await analyze({ photo: photos.photo ? await toBase64(photos.photo.ai) : null, label: photos.label ? await toBase64(photos.label.ai) : null })
       const f = r.fields
       cand.aiFields = f
-      for (const k of ['category', 'color_primary', 'size_system']) if (f[k]) cand[k] = f[k]
+      for (const k of ['category', 'color_primary', 'size_system', 'fabric']) if (f[k]) cand[k] = f[k]
       for (const k of ['colors_secondary', 'seasons', 'occasions']) if (f[k]?.length) cand[k] = f[k]
       if (f.brand && !cand.brand) cand.brand = f.brand
       msg = 'Controlla categoria, colori, stagioni e occasioni, poi valuta.'
@@ -77,6 +78,7 @@ export function render(root, { go }) {
         color_primary: cand.color_primary, colors_secondary: cand.colors_secondary, seasons: cand.seasons, occasions: cand.occasions,
         price: cand.price, purchased_on: new Date().toISOString().slice(0, 10),
         size_system: cand.size_system || f.size_system || null,
+        fabric: cand.fabric || f.fabric || null,
         size_label: result?.size?.size && (!f.size_label) ? result.size.size : f.size_label || null,
       },
       photo: photos.photo, label: photos.label ? { full: photos.label.full, ai: photos.label.ai } : null,
@@ -93,6 +95,7 @@ export function render(root, { go }) {
       category: sel,
       color: swatches(cand.color_primary, { onchange: () => ctl.colors2.refresh() }),
       colors2: null,
+      fabric: choices(Object.fromEntries(Object.entries(FABRICS).map(([k, v]) => [k, v.label])), cand.fabric),
       seasons: choices(SEASONS, cand.seasons, { multi: true }),
       occasions: choices(OCCASIONS, cand.occasions, { multi: true, hints: OCCASION_HINT }),
       system: h('select', null, h('option', { value: '' }, 'Automatico'), Object.entries(SIZE_SYSTEMS).map(([k, v]) => h('option', { value: k, selected: cand.size_system === k }, v))),
@@ -114,6 +117,7 @@ export function render(root, { go }) {
         field('Categoria', ctl.category),
         field('Colore dominante', ctl.color),
         field('Colori secondari', ctl.colors2),
+        field('Tessuto', ctl.fabric),
         field('Stagioni', ctl.seasons),
         field('Occasioni', ctl.occasions),
         field('Sistema taglie del negozio', ctl.system)),

@@ -1,12 +1,16 @@
 // Motore outfit: funzioni pure (nessun DOM, nessuna rete) — testabili e riusabili.
-import { CATEGORIES, COLORS, seasonOfDate, colorAdj } from './taxonomy.js'
+import { CATEGORIES, COLORS, FABRICS, seasonOfDate, colorAdj } from './taxonomy.js'
 
 const DAY = 86400000
 export const toDay = (d) => (typeof d === 'string' ? d.slice(0, 10) : new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10))
 export const daysBetween = (a, b) => Math.round((Date.parse(toDay(b)) - Date.parse(toDay(a))) / DAY)
 
 export const slotOf = (item) => CATEGORIES[item?.category]?.slot || null
-export const warmthOf = (item) => item?.warmth || CATEGORIES[item?.category]?.warmth || 2
+export const warmthOf = (item) => {
+  if (item?.warmth) return item.warmth
+  const base = CATEGORIES[item?.category]?.warmth || 2
+  return Math.max(1, Math.min(3, base + (FABRICS[item?.fabric]?.warmth || 0)))
+}
 
 export function itemName(item) {
   if (item?.name) return item.name
@@ -112,6 +116,9 @@ function weatherAllows(item, need) {
   const c = item.category, T = need.T
   if (c === 'shorts' && T < 19) return false
   if (c === 'sandals' && (T < 19 || need.rain)) return false
+  const fab = FABRICS[item.fabric]
+  if (fab?.noCold && T < 15) return false // lino con il freddo
+  if (fab?.noHeat && T >= 26 && CATEGORIES[c]?.slot !== 'shoes') return false // lana e cashmere con il caldo
   if (c === 'coat' && T >= 18) return false
   if (c === 'boots' && T >= 24) return false
   if (T >= 26 && ['knit', 'sweatshirt', 'jacket', 'coat'].includes(c)) return false
@@ -163,6 +170,7 @@ export function suggestOutfits({ items, wearLog, occasion, weather, date = new D
       let bonus = 0
       if (need.rain && outer && ['raincoat', 'jacket'].includes(outer.category)) bonus += 0.08
       if (need.rain && !outer && need.T < 24) bonus -= 0.1
+      if (need.rain && FABRICS[shoes.fabric]?.badInRain) bonus -= 0.12
       if (need.wind && outer) bonus += 0.03
       if (occasion === 'work' && jacket) bonus += 0.02
       const score = 0.4 * meanItem + 0.3 * harmony + 0.3 * warmthFit + bonus
