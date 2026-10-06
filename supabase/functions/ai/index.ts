@@ -449,17 +449,23 @@ export function parseProductPage(html: string, pageUrl: string): Candidate {
   for (const v of rawVariants) {
     if (!v || typeof v !== 'object') continue
     const color = str(v.color)
-    const key = norm(color) || norm(str(v.sku)) || String(byColor.size)
+    const image = abs(imageOf(v.image), pageUrl)
+    // le varianti di sola taglia (stesso colore o colore assente, stessa foto) diventano una sola
+    const key = norm(color) || (image ? 'img:' + image : 'nocolor')
     const cur = byColor.get(key)
     const item: Variant = cur ?? {
       color, sku: str(v.sku) || str(v.mpn), gtins: [],
-      image: abs(imageOf(v.image), pageUrl), url: abs(str(v.url) || str(([] as Node[]).concat(v.offers ?? [])[0]?.url), pageUrl),
+      image, url: abs(str(v.url) || str(([] as Node[]).concat(v.offers ?? [])[0]?.url), pageUrl),
     }
-    item.gtins = [...new Set([...item.gtins, ...gtinsOf(v)])]
-    if (!item.image) item.image = abs(imageOf(v.image), pageUrl)
+    item.gtins = [...new Set([...item.gtins, ...gtinsOf(v)])].slice(0, 60)
+    if (!item.image) item.image = image
     byColor.set(key, item)
     if (byColor.size >= 24) break
   }
+  const mainColor = str(main.color) || ''
+  const variants = [...byColor.values()]
+  // un solo "colore" ricavato: è il prodotto stesso, con il colore della pagina
+  if (variants.length === 1 && !variants[0].color) variants[0].color = mainColor
   const { price, currency } = priceOf(main)
   const metaPrice = Number(String(meta['product:price:amount'] ?? meta['og:price:amount'] ?? '').replace(',', '.'))
   return {
@@ -470,11 +476,11 @@ export function parseProductPage(html: string, pageUrl: string): Candidate {
     image: abs(imageOf(main.image), pageUrl) || abs(meta['og:image:secure_url'] || meta['og:image'] || meta['twitter:image'] || '', pageUrl),
     price: price ?? (Number.isFinite(metaPrice) && metaPrice > 0 ? metaPrice : null),
     currency: currency || meta['product:price:currency'] || meta['og:price:currency'] || '',
-    color: str(main.color) || meta['product:color'] || '',
+    color: mainColor || meta['product:color'] || '',
     material: str(main.material),
     sku: str(main.sku) || str(main.mpn) || meta['product:retailer_item_id'] || '',
     gtins: gtinsOf(main),
-    variants: [...byColor.values()],
+    variants,
     isProduct: nodes.length > 0 || /product/i.test(meta['og:type'] ?? ''),
     source: 'page',
   }
@@ -616,7 +622,9 @@ export async function lookup(body: Node) {
     }
   })
 
-  matches.sort((a, b) => RANK[b.level] - RANK[a.level] || Number(!!b.image) - Number(!!a.image) || b.variants.length - a.variants.length)
+  // a parità di livello: negozi italiani (nomi dei colori in italiano, prezzi in euro), poi con foto e varianti
+  const italian = (m: Match) => Number(/\.it$/.test(m.domain) || /\/it([-_/]|$)/i.test(m.url))
+  matches.sort((a, b) => RANK[b.level] - RANK[a.level] || italian(b) - italian(a) || Number(!!b.image) - Number(!!a.image) || b.variants.length - a.variants.length)
   const candidates = matches.slice(0, 4)
   return { level: candidates[0]?.level ?? 'none', queries, candidates }
 }
