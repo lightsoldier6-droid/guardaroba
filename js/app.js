@@ -1,4 +1,4 @@
-import { h, icon } from './ui.js'
+import { h, icon, toast } from './ui.js'
 import { state, sb, configured, subscribe, loadCache, sync } from './store.js'
 import * as idb from './idb.js'
 import * as today from './views/today.js'
@@ -111,11 +111,19 @@ async function start() {
 }
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js').catch((e) => console.warn('SW', e))
+  const reg = navigator.serviceWorker.register('./sw.js').catch((e) => { console.warn('SW', e); return null })
+  // iOS riprende l'app dal multitasking senza ricaricarla: a ogni ritorno controlla se c'è una versione nuova
+  document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState === 'visible' && navigator.onLine) (await reg)?.update().catch(() => {})
+  })
   let reloaded = false
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    // nuova versione installata: ricarica solo se non c'è un modulo in compilazione
-    if (reloaded || current?.mod === itemForm || current?.mod === shop) return
+    if (reloaded) return
+    // nuova versione installata: se stai compilando un modulo non ricarica da sola, chiede
+    if (current?.mod === itemForm || current?.mod === shop || current?.mod === batchView) {
+      toast('È pronta una nuova versione dell’app', { action: 'Aggiorna', onAction: () => { reloaded = true; location.reload() }, ms: 8000 })
+      return
+    }
     reloaded = true; location.reload()
   })
 }

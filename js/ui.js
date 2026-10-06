@@ -106,14 +106,34 @@ export function swatches(value, { multi = false, onchange, exclude } = {}) {
 
 // <label> solo per i campi nativi; i gruppi di pulsanti stanno in un <div> (dentro un <label> i tocchi vengono inoltrati al primo pulsante)
 let fieldSeq = 0
+const anchorOf = (label) => (typeof label === 'string' ? label : label?.firstChild?.textContent || label?.textContent || null)
 export function field(label, control, hint) {
   const native = control instanceof HTMLInputElement || control instanceof HTMLSelectElement || control instanceof HTMLTextAreaElement
-  if (native) return h('label', { class: 'field' }, h('span', { class: 'flabel' }, label), control, hint ? h('span', { class: 'fhint' }, hint) : null)
+  const a = anchorOf(label)
+  if (native) return h('label', { class: 'field', 'data-a': a }, h('span', { class: 'flabel' }, label), control, hint ? h('span', { class: 'fhint' }, hint) : null)
   const id = `fl-${++fieldSeq}`
   if (control.setAttribute) control.setAttribute('aria-labelledby', id)
-  return h('div', { class: 'field' }, h('span', { class: 'flabel', id }, label), control, hint ? h('span', { class: 'fhint' }, hint) : null)
+  return h('div', { class: 'field', 'data-a': a }, h('span', { class: 'flabel', id }, label), control, hint ? h('span', { class: 'fhint' }, hint) : null)
 }
-export const section = (title, ...children) => h('section', { class: 'sec' }, title ? h('h2', null, title) : null, ...children)
+export const section = (title, ...children) => h('section', { class: 'sec', 'data-a': title || null }, title ? h('h2', null, title) : null, ...children)
+
+// Ridisegna senza far saltare la pagina: se arrivano risultati sopra ciò che stai guardando
+// (lettura AI, ricerca online), il campo che avevi sotto il dito resta nello stesso punto dello schermo.
+// Safari non ha l'ancoraggio automatico dello scorrimento, quindi lo facciamo a mano.
+export function keepAnchor(root, fn) {
+  if (window.scrollY < 4) return fn()
+  const head = document.querySelector('.topbar')?.getBoundingClientRect().bottom || 0
+  const before = [...root.querySelectorAll('[data-a]')].find((e) => e.getBoundingClientRect().bottom > head + 8)
+  const key = before?.dataset.a, top = before?.getBoundingClientRect().top
+  fn()
+  if (key == null) return
+  const after = [...root.querySelectorAll('[data-a]')].find((e) => e.dataset.a === key)
+  const d = after ? after.getBoundingClientRect().top - top : 0
+  if (Math.abs(d) > 1) window.scrollBy(0, d)
+}
+
+// Su iOS lo stato :active (riscontro al tocco) funziona solo se la pagina ascolta i touchstart
+document.addEventListener('touchstart', () => {}, { passive: true })
 
 // Foto di copertina: la tua o quella di catalogo (campo cover); se ne manca una, l'altra
 export function coverPaths(it) {

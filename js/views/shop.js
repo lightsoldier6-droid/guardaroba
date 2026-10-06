@@ -1,6 +1,6 @@
-import { h, put, add, toast, choices, swatches, field, section, photoPicker, thumb, verdictSymbol } from '../ui.js'
+import { h, put, add, keepAnchor, toast, choices, swatches, field, section, photoPicker, thumb, verdictSymbol } from '../ui.js'
 import { state, latestMeasures } from '../store.js'
-import { CATEGORIES, SEASONS, OCCASIONS, OCCASION_HINT, SIZE_SYSTEMS, FABRICS } from '../taxonomy.js'
+import { CATEGORIES, COLORS, SEASONS, OCCASIONS, OCCASION_HINT, SIZE_SYSTEMS, FABRICS } from '../taxonomy.js'
 import { prepare, toBase64, hydrate } from '../images.js'
 import { analyze, readSizeGuide, lookup, canLookup } from '../ai.js'
 import { webFields, mergeInto } from '../webmatch.js'
@@ -64,7 +64,11 @@ export function render(root, { go }) {
   }
 
   // ---- ricerca online dal cartellino: prezzo pieno, foto di catalogo, colore esatto
-  const query = () => ({ brand: cand.brand || '', category: cand.category || '', ...Object.fromEntries(Object.entries(cand.codes || {}).map(([k, v]) => [k, v || ''])) })
+  const query = () => {
+    const q = { brand: cand.brand || '', category: cand.category || '', ...Object.fromEntries(Object.entries(cand.codes || {}).map(([k, v]) => [k, v || ''])) }
+    if (!q.color_name && cand.color_primary) q.color_name = COLORS[cand.color_primary]?.label.toLowerCase() || ''
+    return q
+  }
   async function runLookup() {
     collect(); unapply()
     web = { ...newWebState(), status: 'busy' }; build()
@@ -167,7 +171,7 @@ export function render(root, { go }) {
     ctl.colors2 = swatches(cand.colors_secondary, { multi: true, exclude: () => ctl.color.value })
     const url = (b) => (b ? URL.createObjectURL(b) : null)
 
-    put(wrap, 
+    keepAnchor(wrap, () => put(wrap, 
       h('datalist', { id: 'shopbrands' }, [...new Set(state.items.map((i) => i.brand).filter(Boolean))].map((b) => h('option', { value: b }))),
       h('div', { class: 'pickers three' },
         photoPicker('Capo', { camera: true, preview: url(photos.photo?.thumb), onpick: async (f) => { photos.photo = await prepare(f); readPhotos() } }),
@@ -188,7 +192,7 @@ export function render(root, { go }) {
         result ? h('button', { type: 'button', class: 'btn ghost', onclick: reset }, 'Nuovo capo') : null,
         h('button', { type: 'button', class: 'btn', onclick: run, disabled: busy }, result ? 'Rivaluta' : 'Valuta')),
       result ? resultView(result, bought, webApplied?.w?.fields?.list_price) : null,
-    )
+    ))
     hydrate(wrap)
   }
   build()

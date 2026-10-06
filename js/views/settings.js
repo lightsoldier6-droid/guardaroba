@@ -34,6 +34,8 @@ export function render(root, { rerender, go }) {
       h('p', { class: 'muted' }, 'Uso la posizione del telefono. Se non è disponibile, uso questa città: ', h('b', null, place?.name || 'nessuna')),
       field('Cerca città', h('div', { class: 'row-btn' }, q, h('button', { type: 'button', class: 'btn ghost', onclick: find }, 'Cerca'))),
       results),
+    section('Versione',
+      h('p', { class: 'muted', id: 'appver' }, 'Versione dell’app: …')),
     section('Account',
       h('p', { class: 'muted' }, state.user?.email || ''),
       h('button', { class: 'btn ghost', onclick: async () => {
@@ -41,9 +43,19 @@ export function render(root, { rerender, go }) {
         await sb.auth.signOut(); await clearLocal(); go('#/')
       } }, 'Esci')),
   )
+  setTimeout(showVersion, 0)
 }
 
 // ---------- Accesso -------------------------------------------------
+// versione installata = nome della cache del service worker (es. guardaroba-v8)
+async function showVersion() {
+  const el = document.getElementById('appver')
+  if (!el) return
+  const keys = await caches?.keys?.().catch(() => []) || []
+  const v = keys.filter((k) => k.startsWith('guardaroba-v')).sort().pop()
+  el.textContent = v ? `Versione dell’app: ${v.replace('guardaroba-', '')}` : 'Versione dell’app: non installata'
+}
+
 export function renderLogin(root) {
   const email = h('input', { type: 'email', autocomplete: 'username', inputmode: 'email', required: true, autocapitalize: 'none' })
   const pass = h('input', { type: 'password', autocomplete: 'current-password', required: true })

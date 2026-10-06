@@ -1,7 +1,7 @@
-import { h, put, add, toast, choices, swatches, field, section, photoPicker } from '../ui.js'
+import { h, put, add, keepAnchor, toast, choices, swatches, field, section, photoPicker } from '../ui.js'
 import { state } from '../store.js'
 import { saveItem } from '../itemsave.js'
-import { CATEGORIES, SEASONS, OCCASIONS, OCCASION_HINT, FIT_FEEL, WARMTH, SIZE_SYSTEMS, FABRICS, compositionToText, textToComposition, fabricFromComposition } from '../taxonomy.js'
+import { CATEGORIES, COLORS, SEASONS, OCCASIONS, OCCASION_HINT, FIT_FEEL, WARMTH, SIZE_SYSTEMS, FABRICS, compositionToText, textToComposition, fabricFromComposition } from '../taxonomy.js'
 import { prepare, prepareCatalog, toBase64, imageURL } from '../images.js'
 import { analyze, lookup, fetchImage, canLookup, validEan } from '../ai.js'
 import { webFields, mergeInto } from '../webmatch.js'
@@ -47,7 +47,7 @@ export function render(root, { go, params }) {
 
   const lookupQuery = () => ({
     brand: draft.brand || '', article_code: draft.article_code || '', color_code: draft.color_code || '', ean: draft.ean || '',
-    color_name: labelCodes.color_name || '', model_name: labelCodes.model_name || '', category: draft.category || '',
+    color_name: labelCodes.color_name || COLORS[draft.color_primary]?.label.toLowerCase() || '', model_name: labelCodes.model_name || '', category: draft.category || '',
   })
 
   async function runAI() {
@@ -204,7 +204,8 @@ export function render(root, { go, params }) {
     ctl = {
       category: catSelect,
       name: h('input', { type: 'text', value: draft.name || '', placeholder: 'Facoltativo, es. Oxford del matrimonio', autocomplete: 'off' }),
-      brand: h('input', { type: 'text', value: draft.brand || '', autocomplete: 'off', autocapitalize: 'words', list: 'brands' }),
+      brand: h('input', { type: 'text', value: draft.brand || '', autocomplete: 'off', autocapitalize: 'words', list: 'brands',
+        onchange: () => { if (web.status === 'idle' || web.status === 'error') { collect(); build() } } }),
       color: swatches(draft.color_primary, { onchange: () => ctl.colors2.refresh() }),
       colors2: null,
       composition: h('input', { type: 'text', value: compositionToText(draft.composition), placeholder: '98% cotone, 2% elastan',
@@ -238,14 +239,15 @@ export function render(root, { go, params }) {
     if (!pending.photo && existing?.thumb_path) imageURL(existing.thumb_path).then((u) => pkPhoto.setPreview(u))
     if (!pending.label && existing?.label_photo_path) imageURL(existing.label_photo_path).then((u) => pkLabel.setPreview(u))
 
-    put(form,
+    keepAnchor(form, () => put(form,
       h('datalist', { id: 'brands' }, brands.map((b) => h('option', { value: b }))),
       h('datalist', { id: 'fits' }, ['slim', 'regular', 'comfort', 'tailored', 'oversize'].map((b) => h('option', { value: b }))),
       h('div', { class: 'pickers' }, pkLabel, pkPhoto),
       h('div', { class: 'ai-bar' + (aiBusy ? ' busy' : '') },
         h('span', null, aiMsg || 'Basta la foto dell’etichetta: l’AI legge i dati e cerca il capo online. La foto del capo serve solo se online non si trova.'),
         (pending.photo || pending.label) && !aiBusy ? h('button', { type: 'button', class: 'mini', onclick: runAI }, 'Rileggi') : null),
-      webPanel(web, { ...handlers, canSearch: canLookup(lookupQuery()) && !aiBusy, catalogPreview }),
+      webPanel(web, { ...handlers, canSearch: canLookup(lookupQuery()) && !aiBusy, catalogPreview,
+        hint: (pending.label || pending.photo) && !aiBusy && aiMsg ? 'Niente da cercare online: in etichetta non ci sono codici né marca. Scrivi la marca qui sotto e torna qui, oppure fotografa il cartellino.' : null }),
       !web.picked && !pending.catalog && draft.catalog_photo_path ? h('p', { class: 'fhint' }, 'Questo capo ha già una foto di catalogo: una nuova ricerca la sostituisce solo se scegli un altro risultato.') : null,
       ctl.cover ? field('Foto di copertina', ctl.cover, 'Quella che vedi nell’armadio e negli outfit.') : null,
       section('Che cos’è',
@@ -276,7 +278,7 @@ export function render(root, { go, params }) {
       h('div', { class: 'savebar' },
         h('button', { type: 'button', class: 'btn ghost', onclick: () => history.back() }, 'Annulla'),
         h('button', { type: 'submit', class: 'btn', disabled: aiBusy || web.imgBusy }, isNew ? 'Salva' : 'Salva modifiche')),
-    )
+    ))
   }
 
   async function save() {

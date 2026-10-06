@@ -91,7 +91,8 @@ export async function lookup({ brand, article_code, color_code, color_name, ean,
 }
 
 // C'è abbastanza per cercare? (marca con codice o nome del modello, oppure codice a barre)
-export const canLookup = (d) => !!(d?.ean || ((d?.article_code || d?.model_name) && d?.brand) || (d?.article_code && String(d.article_code).length >= 6))
+// Con marca e tipo di capo, senza codici, la ricerca dà solo risultati "da identificare".
+export const canLookup = (d) => !!(d?.ean || (d?.brand && (d?.article_code || d?.model_name || d?.category)) || (d?.article_code && String(d.article_code).length >= 6))
 
 // Scarica la foto di catalogo passando dalla Edge Function (il browser non può leggerla direttamente)
 export async function fetchImage(url) {

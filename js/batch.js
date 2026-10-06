@@ -7,6 +7,7 @@ import { toBase64, prepareCatalog } from './images.js'
 import { webFields, mergeInto } from './webmatch.js'
 import { saveItem } from './itemsave.js'
 import { uuid } from './store.js'
+import { COLORS } from './taxonomy.js'
 
 export const bstate = { list: [], running: false, loaded: false }
 const listeners = new Set()
@@ -74,6 +75,7 @@ export async function run() {
         }
         e.status = 'searching'; await save(e)
         const q = { brand: e.fields.brand || '', category: e.fields.category || '', ...Object.fromEntries(Object.entries(e.codes || {}).map(([k, v]) => [k, v || ''])) }
+        if (!q.color_name && e.fields.color_primary) q.color_name = COLORS[e.fields.color_primary]?.label.toLowerCase() || ''
         e.web = canLookup(q) ? await lookup(q) : { level: 'none', candidates: [], note: 'Codici o marca non leggibili' }
         e.status = 'ready'; await save(e)
       } catch (err) {

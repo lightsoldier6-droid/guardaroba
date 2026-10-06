@@ -340,10 +340,16 @@ async function safeFetch(raw: string, accept: string, maxBytes: number, timeoutM
 }
 
 // --- Lettura della pagina prodotto --------------------------------------
-const ENT: Record<string, string> = { amp: '&', quot: '"', apos: "'", lt: '<', gt: '>', nbsp: ' ' }
+const ENT: Record<string, string> = {
+  amp: '&', quot: '"', apos: "'", lt: '<', gt: '>', nbsp: ' ', rsquo: '’', lsquo: '‘', ldquo: '“', rdquo: '”', ndash: '–', mdash: '—',
+  hellip: '…', reg: '®', trade: '™', copy: '©', deg: '°', euro: '€', middot: '·',
+  agrave: 'à', aacute: 'á', acirc: 'â', auml: 'ä', egrave: 'è', eacute: 'é', ecirc: 'ê', euml: 'ë', igrave: 'ì', iacute: 'í',
+  ograve: 'ò', oacute: 'ó', ocirc: 'ô', ouml: 'ö', ugrave: 'ù', uacute: 'ú', uuml: 'ü', ccedil: 'ç', ntilde: 'ñ', szlig: 'ß',
+}
 export function decodeEntities(s: string): string {
-  return s.replace(/&(#x[0-9a-f]+|#\d+|amp|quot|apos|lt|gt|nbsp);/gi, (m, e: string) => {
+  return s.replace(/&(#x[0-9a-f]+|#\d+|[a-z]{2,8});/gi, (m, e: string) => {
     const k = e.toLowerCase()
+    if (k[0] !== '#' && e !== k && ENT[k]) return ENT[k].toUpperCase()
     if (k[0] === '#') {
       const n = k[1] === 'x' ? parseInt(k.slice(2), 16) : parseInt(k.slice(1), 10)
       return Number.isFinite(n) && n > 0 && n < 0x110000 ? String.fromCodePoint(n) : m
@@ -512,7 +518,8 @@ export function scoreCandidate(c: Candidate, text: string, q: Query): Match | nu
     }
   } else {
     const brand = norm(q.brand)
-    const brandOk = !brand || norm(`${c.brand} ${c.title} ${c.domain}`).includes(brand.slice(0, 12))
+    // senza marca un risultato "simile" non vale niente: serve almeno il codice
+    const brandOk = !!brand && norm(`${c.brand} ${c.title} ${c.domain}`).includes(brand.slice(0, 12))
     const model = norm(q.model_name)
     const modelOk = !model || compact.includes(model)
     if (brandOk && c.isProduct && (modelOk || !q.model_name)) { level = 'possible'; why = model && modelOk ? 'marca e nome del modello' : 'marca' }
@@ -625,7 +632,15 @@ export async function lookup(body: Node) {
   // a parità di livello: negozi italiani (nomi dei colori in italiano, prezzi in euro), poi con foto e varianti
   const italian = (m: Match) => Number(/\.it$/.test(m.domain) || /\/it([-_/]|$)/i.test(m.url))
   matches.sort((a, b) => RANK[b.level] - RANK[a.level] || italian(b) - italian(a) || Number(!!b.image) - Number(!!a.image) || b.variants.length - a.variants.length)
-  const candidates = matches.slice(0, 4)
+  // lo stesso prodotto trovato più volte sullo stesso sito conta una volta sola
+  const seenProd = new Set<string>()
+  const unique = matches.filter((m) => {
+    const k = m.domain + '|' + (norm(m.title).slice(0, 40) || m.url)
+    if (seenProd.has(k)) return false
+    seenProd.add(k)
+    return true
+  })
+  const candidates = unique.slice(0, 4)
   return { level: candidates[0]?.level ?? 'none', queries, candidates }
 }
 

@@ -37,8 +37,9 @@ function variantGrid(c, { onPick, suggested = -1, picked = -1 }) {
 export function webPanel(web, handlers) {
   const { search, apply, reject, none, canSearch, catalogPreview } = handlers
   if (web.status === 'idle') {
-    return canSearch ? h('div', { class: 'webbar' }, h('span', null, 'Cerca il capo online dai codici dell’etichetta.'),
-      h('button', { type: 'button', class: 'mini', onclick: search }, 'Cerca online')) : null
+    if (canSearch) return h('div', { class: 'webbar' }, h('span', null, 'Cerca il capo online da marca e codici dell’etichetta.'),
+      h('button', { type: 'button', class: 'mini', onclick: search }, 'Cerca online'))
+    return handlers.hint ? h('div', { class: 'webbar' }, h('span', null, handlers.hint)) : null
   }
   if (web.status === 'busy') return h('div', { class: 'ai-bar busy' }, h('span', null, 'Cerco il capo online…'))
   if (web.status === 'error') {

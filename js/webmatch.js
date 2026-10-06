@@ -41,6 +41,7 @@ export function webFields(cand, variantIdx, { brand, matchLevel } = {}) {
   const composition = compositionFromWeb(cand.material)
   return {
     fields: {
+      brand: cand.brand ? cand.brand.replace(/[®™©]/g, '').trim().slice(0, 40) || null : null,
       color_primary: colorFromName(colorName),
       name: modelName(cand, brand || cand.brand),
       category: categoryFromText(`${cand.title} ${cand.url}`),

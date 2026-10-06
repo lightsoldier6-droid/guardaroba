@@ -334,3 +334,8 @@ td sup { font-size: 10px; color: var(--rust); margin-left: 1px; }
 .source { font-size: 14px; color: var(--ink-2); }
 .source a { color: var(--ink-2); text-underline-offset: 3px; }
 .pickers.short .picker { aspect-ratio: 16 / 9; }
+
+/* riscontro immediato al tocco */
+.sw:active i { transform: scale(.88); }
+.choice:active, .mini:active, .variant:active { background: var(--rule); }
+.sw i, .choice { transition: transform .08s; }
