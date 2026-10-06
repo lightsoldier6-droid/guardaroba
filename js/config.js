@@ -7,4 +7,4 @@
 //
 // NON incollare mai qui: la chiave Ollama, la chiave 'sb_secret_…' o 'service_role', password.
 export const SUPABASE_URL = 'https://hjwdrpjrfvqilmcobzjr.supabase.co'
-export const SUPABASE_PUBLISHABLE_KEY = 'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_c-rmX65Uzbyn64AIvhZL2A_wUgsGU5z'
+export const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_c-rmX65Uzbyn64AIvhZL2A_wUgsGU5z'

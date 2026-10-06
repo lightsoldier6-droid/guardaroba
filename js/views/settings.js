@@ -53,7 +53,10 @@ export function renderLogin(root) {
     e.preventDefault(); err.textContent = ''; btn.disabled = true
     const { error } = await sb.auth.signInWithPassword({ email: email.value.trim(), password: pass.value })
     btn.disabled = false
-    if (error) err.textContent = /invalid/i.test(error.message) ? 'Email o password non corrette.' : /fetch|network/i.test(error.message) ? 'Serve la connessione per il primo accesso.' : error.message
+    if (error) err.textContent = /api key|apikey/i.test(error.message) ? 'Chiave pubblicabile non valida in js/config.js: deve contenere solo il valore che inizia con sb_publishable_.'
+      : /invalid login|credentials/i.test(error.message) ? 'Email o password non corrette.'
+      : /not confirmed/i.test(error.message) ? 'Utente non confermato: su Supabase spunta Auto Confirm User o conferma l’email.'
+      : /fetch|network/i.test(error.message) ? 'Serve la connessione per il primo accesso.' : error.message
   } },
   h('h2', null, 'Guardaroba'),
   h('p', { class: 'muted' }, 'Accedi con l’utente creato su Supabase. Dopo il primo accesso l’app funziona anche offline.'),
