@@ -1,0 +1,129 @@
+// Piccoli strumenti per costruire l'interfaccia senza framework.
+import { COLORS } from './taxonomy.js'
+
+// Sostituisce/aggiunge figli ignorando null e false (il DOM nativo li scriverebbe come testo)
+const clean = (xs) => xs.flat(Infinity).filter((x) => x != null && x !== false)
+export const put = (el, ...children) => { el.replaceChildren(...clean(children)); return el }
+export const add = (el, ...children) => { el.append(...clean(children)); return el }
+
+export function h(tag, attrs, ...children) {
+  const el = document.createElement(tag)
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v == null || v === false) continue
+    if (k === 'class') el.className = v
+    else if (k === 'html') el.innerHTML = v
+    else if (k.startsWith('on')) el.addEventListener(k.slice(2), v)
+    else if (k === 'style' && typeof v === 'object') Object.assign(el.style, v)
+    else if (v === true) el.setAttribute(k, '')
+    else el.setAttribute(k, v)
+  }
+  for (const c of children.flat(Infinity)) {
+    if (c == null || c === false) continue
+    el.append(c instanceof Node ? c : document.createTextNode(String(c)))
+  }
+  return el
+}
+
+// Icone in stile simboli di lavaggio: tratto pulito, geometria semplice
+const svg = (body, size = 24) => `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true">${body}</svg>`
+export const icon = {
+  today: svg('<path d="M8 3 4 5.5 2.5 10l3 1V21h13V11l3-1L20 5.5 16 3c-.6 1.6-2.2 2.6-4 2.6S8.6 4.6 8 3Z"/>'),
+  closet: svg('<path d="M12 7.5V6.2c0-1 .9-1.7 1.8-1.7s1.7.8 1.7 1.7c0 1.2-1.2 1.6-2.2 2.3L3 15.5V18h18v-2.5L13.3 9"/>'),
+  shop: svg('<path d="M3 12.6V4h8.6L21 13.4 13.4 21 3 12.6Z"/><circle cx="7.6" cy="8.4" r="1.4"/>'),
+  measure: svg('<rect x="2.5" y="8" width="19" height="8"/><path d="M6 8v3M9.5 8v4.5M13 8v3M16.5 8v4.5M20 8v3"/>'),
+  gear: svg('<circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/>'),
+  camera: svg('<path d="M3 7.5h4l1.5-2.5h7L17 7.5h4V19H3Z"/><circle cx="12" cy="13" r="3.6"/>'),
+  plus: svg('<path d="M12 4v16M4 12h16"/>'),
+  back: svg('<path d="M15 5 8 12l7 7"/>'),
+  check: svg('<path d="m4.5 12.5 4.5 4.5L19.5 6.5"/>'),
+  info: svg('<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.2v.6"/>', 18),
+  rain: svg('<path d="M7 15a4 4 0 0 1 .4-8A5 5 0 0 1 17 8a3.5 3.5 0 0 1 0 7Z"/><path d="M9 18l-1 2.5M13 18l-1 2.5M17 18l-1 2.5"/>', 18),
+  wind: svg('<path d="M3 9h11a2.5 2.5 0 1 0-2.5-2.5M3 13h15a2.5 2.5 0 1 1-2.5 2.5M3 17h7"/>', 18),
+  sync: svg('<path d="M20 12a8 8 0 0 1-14 5.3M4 12a8 8 0 0 1 14-5.3"/><path d="M18 3v4h-4M6 21v-4h4"/>', 18),
+}
+
+// Simboli del verdetto, presi dal linguaggio delle etichette di lavaggio:
+// pieno = sì, triangolo = con cautela, barrato = no
+export const verdictSymbol = {
+  buy: svg('<rect x="3" y="3" width="18" height="18"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="1.3" fill="currentColor"/>', 64),
+  consider: svg('<path d="M12 3.5 21.5 20h-19Z"/><path d="M12 10v4.5M12 16.6v.6"/>', 64),
+  skip: svg('<rect x="3" y="3" width="18" height="18"/><circle cx="12" cy="12" r="6"/><path d="M2 2l20 20M22 2 2 22"/>', 64),
+}
+
+let toastTimer = null
+export function toast(msg, { action, onAction, ms = 3200 } = {}) {
+  const el = document.getElementById('toast')
+  put(el, h('span', null, msg), action ? h('button', { type: 'button', onclick: () => { el.classList.remove('show'); onAction?.() } }, action) : null)
+  el.classList.add('show')
+  clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => el.classList.remove('show'), action ? ms + 2500 : ms)
+}
+
+// Gruppo di scelte (singola o multipla) — restituisce elemento con .value
+export function choices(dict, value, { multi = false, onchange, hints } = {}) {
+  let cur = multi ? new Set(value || []) : value ?? null
+  const wrap = h('div', { class: 'choices', role: multi ? 'group' : 'radiogroup' })
+  const render = () => {
+    wrap.replaceChildren(...Object.entries(dict).map(([k, label]) => {
+      const on = multi ? cur.has(k) : cur === k
+      return h('button', {
+        type: 'button', class: 'choice' + (on ? ' on' : ''), 'aria-pressed': String(on),
+        onclick: () => {
+          if (multi) { cur.has(k) ? cur.delete(k) : cur.add(k) } else cur = cur === k ? null : k
+          render(); onchange?.(wrap.value)
+        },
+      }, label, hints?.[k] ? h('small', null, hints[k]) : null)
+    }))
+  }
+  Object.defineProperty(wrap, 'value', {
+    get: () => (multi ? [...cur] : cur),
+    set: (v) => { cur = multi ? new Set(v || []) : v ?? null; render() },
+  })
+  render()
+  return wrap
+}
+
+export function swatches(value, { multi = false, onchange, exclude } = {}) {
+  let cur = multi ? new Set(value || []) : value ?? null
+  const wrap = h('div', { class: 'swatches' })
+  const render = () => wrap.replaceChildren(...Object.entries(COLORS).filter(([k]) => k !== exclude?.()).map(([k, c]) => {
+    const on = multi ? cur.has(k) : cur === k
+    return h('button', {
+      type: 'button', class: 'sw' + (on ? ' on' : ''), title: c.label, 'aria-label': c.label, 'aria-pressed': String(on),
+      onclick: () => { if (multi) { cur.has(k) ? cur.delete(k) : cur.add(k) } else cur = cur === k ? null : k; render(); onchange?.(wrap.value) },
+    }, h('i', { style: { background: c.hex } }), h('span', null, c.label))
+  }))
+  Object.defineProperty(wrap, 'value', { get: () => (multi ? [...cur] : cur), set: (v) => { cur = multi ? new Set(v || []) : v ?? null; render() } })
+  wrap.refresh = render
+  render()
+  return wrap
+}
+
+export const field = (label, control, hint) => h('label', { class: 'field' }, h('span', { class: 'flabel' }, label), control, hint ? h('span', { class: 'fhint' }, hint) : null)
+export const section = (title, ...children) => h('section', { class: 'sec' }, title ? h('h2', null, title) : null, ...children)
+
+export function thumb(item, cls = '') {
+  return h('span', { class: `ph ${cls}` }, item?.thumb_path || item?.photo_path
+    ? h('img', { 'data-path': item.thumb_path || item.photo_path, alt: '' })
+    : h('i', { style: { background: COLORS[item?.color_primary]?.hex || 'var(--rule)' } }))
+}
+
+// Input file per foto: su iPhone offre "Scatta foto" o "Libreria"
+export function photoPicker(label, { onpick, camera = false, preview } = {}) {
+  const input = h('input', { type: 'file', accept: 'image/*', capture: camera ? 'environment' : null, class: 'visually-hidden' })
+  const img = h('img', { alt: '' })
+  const box = h('label', { class: 'picker' + (preview ? ' has' : '') }, input, img, h('span', { class: 'pk-label' }, h('span', { html: icon.camera }), label))
+  if (preview) img.src = preview
+  input.addEventListener('change', async () => {
+    const f = input.files?.[0]
+    if (!f) return
+    img.src = URL.createObjectURL(f)
+    box.classList.add('has')
+    await onpick?.(f)
+    input.value = ''
+  })
+  box.setPreview = (url) => { if (url) { img.src = url; box.classList.add('has') } }
+  return box
+}
+
+export const fmtDate = (d) => new Date(d + (d.length === 10 ? 'T12:00:00' : '')).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })
