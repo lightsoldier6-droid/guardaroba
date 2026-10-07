@@ -45,35 +45,63 @@ const tally = (outfits, skip = -1) => {
 }
 const topsOf = (o) => o.items.filter((it) => slotOf(it) === 'top').map((it) => it.id)
 
-// days: [{ date, dress }], weatherByDate: { data: meteo }. Ritorna [{ date, dress, items: [id], tops: [id], reason, alt }]
+// Ogni giornata ha l'impegno del giorno e, se c'è, quello della sera (con un outfit a parte)
+export const PARTS = { day: 'Giorno', evening: 'Sera' }
+export function slotsOf(days) {
+  return (days || []).flatMap((d) => [
+    { date: d.date, part: 'day', dress: d.dress },
+    ...(d.evening ? [{ date: d.date, part: 'evening', dress: d.evening }] : []),
+  ])
+}
+// la sera è più fresca: conta di più la minima
+export function eveningWeather(w) {
+  if (!w) return w
+  const mid = (a, b) => (a != null && b != null ? (a + b) / 2 : a ?? b)
+  return { ...w, tmax: mid(w.tmax, w.tmin), feelsMax: mid(w.feelsMax ?? w.tmax, w.feelsMin ?? w.tmin) }
+}
+const partOf = (o) => o?.part || 'day'
+const weatherOf = (slot, weatherByDate) => (slot.part === 'evening' ? eveningWeather(weatherByDate[slot.date]) : weatherByDate[slot.date])
+// maglie da evitare: quelle delle giornate vicine e dell'altra parte della stessa giornata (la sera ci si cambia)
+const nearTopsOf = (slots, outfits, i) => {
+  const d = slots[i].date, prev = shift(d, -1), next = shift(d, 1)
+  return outfits.flatMap((o, j) => (j !== i && o && [prev, d, next].includes(o.date) ? o.tops || [] : []))
+}
+const shift = (iso, n) => { const x = new Date(iso + 'T12:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10) }
+const entry = (slot, pick, k = 0) => (pick
+  ? { date: slot.date, part: slot.part, dress: slot.dress, items: pick.o.items.map((it) => it.id), tops: topsOf(pick.o), reason: pick.o.reason, alt: k }
+  : { date: slot.date, part: slot.part, dress: slot.dress, items: [], tops: [], reason: '', alt: 0 })
+
+// days: [{ date, dress, evening? }], weatherByDate: { data: meteo }. Ritorna un outfit per ogni impegno (slotsOf), nello stesso ordine
 export function planTrip({ items, days, weatherByDate = {} }) {
-  const n = days.length
-  const out = new Array(n).fill(null)
-  const order = days.map((_, i) => i).sort((a, b) => (RANK[days[a].dress] ?? 5) - (RANK[days[b].dress] ?? 5) || a - b)
+  const slots = slotsOf(days)
+  const out = new Array(slots.length).fill(null)
+  const order = slots.map((_, i) => i).sort((a, b) => (RANK[slots[a].dress] ?? 5) - (RANK[slots[b].dress] ?? 5) || a - b)
   for (const i of order) {
     const { packed, topUses } = tally(out)
-    const nearTops = [out[i - 1], out[i + 1]].flatMap((d) => d?.tops || [])
-    const c = candidates({ items, day: days[i], weather: weatherByDate[days[i].date], packed, topUses, nearTops, n })
-    const best = c.list[0]
-    out[i] = best
-      ? { date: days[i].date, dress: days[i].dress, items: best.o.items.map((it) => it.id), tops: topsOf(best.o), reason: best.o.reason, alt: 0 }
-      : { date: days[i].date, dress: days[i].dress, items: [], tops: [], reason: '', alt: 0, missing: c.missing }
+    const c = candidates({ items, day: slots[i], weather: weatherOf(slots[i], weatherByDate), packed, topUses, nearTops: nearTopsOf(slots, out, i), n: days.length })
+    out[i] = entry(slots[i], c.list[0])
+    if (!c.list[0]) out[i].missing = c.missing
   }
   return out
 }
 
-// Altra proposta per il giorno i, tenendo fermi gli altri giorni (alt = quale alternativa mostrare)
+// Altra proposta per l'impegno i, tenendo fermi gli altri (alt = quale alternativa mostrare)
 export function alternativeFor({ items, days, outfits, i, weatherByDate = {} }) {
+  const slots = slotsOf(days)
   const { packed, topUses } = tally(outfits, i)
-  const nearTops = [outfits[i - 1], outfits[i + 1]].flatMap((d) => d?.tops || [])
-  const c = candidates({ items, day: days[i], weather: weatherByDate[days[i].date], packed, topUses, nearTops, n: days.length, count: 8 })
+  const c = candidates({ items, day: slots[i], weather: weatherOf(slots[i], weatherByDate), packed, topUses, nearTops: nearTopsOf(slots, outfits, i), n: days.length, count: 8 })
   if (!c.list.length) return outfits[i]
   const cur = (outfits[i]?.items || []).join()
   const opts = c.list.filter((x) => x.o.items.map((it) => it.id).join() !== cur)
   if (!opts.length) return outfits[i]
   const k = ((outfits[i]?.alt || 0) + 1) % opts.length
-  const pick = opts[k] || opts[0]
-  return { date: days[i].date, dress: days[i].dress, items: pick.o.items.map((it) => it.id), tops: topsOf(pick.o), reason: pick.o.reason, alt: k }
+  return entry(slots[i], opts[k] || opts[0], k)
+}
+
+// Le proposte salvate valgono ancora se corrispondono, nell'ordine, agli impegni del viaggio
+export function outfitsMatch(days, outfits) {
+  const slots = slotsOf(days)
+  return (outfits || []).length === slots.length && slots.every((s, i) => outfits[i]?.date === s.date && partOf(outfits[i]) === s.part && outfits[i].dress === s.dress)
 }
 
 // Valigia: capi distinti con il numero di giorni in cui servono, in ordine di tipo

@@ -1,7 +1,7 @@
 // Service worker: rende l'app installabile e utilizzabile con rete scarsa.
 // File dell'app: rete prima (con timeout breve), poi copia locale. Font: copia locale.
 // Le chiamate a Supabase, AI e meteo NON passano dalla cache: le gestisce l'app.
-const VERSION = 'guardaroba-v20'
+const VERSION = 'guardaroba-v21'
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './css/app.css', './vendor/supabase.js',
   './js/app.js', './js/config.js', './js/store.js', './js/idb.js', './js/images.js', './js/weather.js', './js/ai.js',

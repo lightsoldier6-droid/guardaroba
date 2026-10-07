@@ -5,7 +5,7 @@ import { h, add, put, toast, thumb, icon, field, section, choices } from '../ui.
 import { state, upsert, patch, remove, uuid } from '../store.js'
 import { DRESS_CODES, SLOTS } from '../taxonomy.js'
 import { itemName, toDay, slotOf } from '../outfit.js'
-import { eventOutfits, planTrip, alternativeFor, packingList } from '../plans.js'
+import { eventOutfits, planTrip, alternativeFor, packingList, outfitsMatch, eveningWeather, PARTS } from '../plans.js'
 import { getRangeWeather, getPlace, searchCity, datesBetween } from '../weather.js'
 import { hydrate } from '../images.js'
 
@@ -37,8 +37,9 @@ function weatherFor(plan, rerender) {
   return entry
 }
 
-function wxLine(w) {
+function wxLine(w, when) {
   if (!w) return null
+  if (when === 'sera') return h('span', { class: 'pwx' }, `circa ${Math.round(w.tmax)}°`, h('small', null, 'di sera'))
   return h('span', { class: 'pwx' }, `${Math.round(w.tmax)}° / ${Math.round(w.tmin)}°`,
     w.rainProb != null ? h('span', null, h('span', { html: icon.rain }), ` ${w.rainProb}%`) : null,
     h('small', null, w.kind === 'typical' ? 'tipico del periodo' : 'previsto'))
@@ -143,7 +144,7 @@ const generating = new Set()
 function tripBody(plan, w, rerender) {
   const days = plan.days || []
   const ids = byId()
-  const valid = (plan.outfits || []).length === days.length && plan.outfits.every((o, i) => o?.date === days[i].date && o.dress === days[i].dress)
+  const valid = outfitsMatch(days, plan.outfits)
   if (!valid) {
     if (w.status === 'loading') return h('p', { class: 'muted' }, 'Preparo la valigia: aspetto il meteo della destinazione…')
     if (!generating.has(plan.id)) {
@@ -155,25 +156,35 @@ function tripBody(plan, w, rerender) {
   }
   const pack = packingList(plan.outfits, state.items)
   const regen = () => { const outfits = planTrip({ items: state.items, days, weatherByDate: w.data || {} }); patch('plans', plan.id, { outfits }); toast('Valigia rifatta') }
+  const other = (i) => {
+    const next = alternativeFor({ items: state.items, days, outfits: plan.outfits, i, weatherByDate: w.data || {} })
+    const outfits = plan.outfits.slice(); outfits[i] = next
+    patch('plans', plan.id, { outfits })
+  }
+  // un blocco per impegno: il giorno in testa alla scheda della giornata, la sera sotto
+  const block = (o, i) => {
+    const items = (o.items || []).map((id) => ids.get(id)).filter(live_)
+    const evening = o.part === 'evening'
+    return h('div', { class: 'tpart' + (evening ? ' evening' : '') },
+      h('div', { class: 'tpart-h' }, evening ? h('b', null, PARTS.evening) : null, h('span', { class: 'dress' }, DRESS[o.dress] || ''),
+        evening ? wxLine(eveningWeather(w.data?.[o.date]), 'sera') : null),
+      items.length ? [strip(items), h('p', { class: 'names' }, items.map(itemName).join(' + ')), o.reason ? h('p', { class: 'reason' }, o.reason) : null]
+        : h('p', { class: 'fhint' }, o.missing ? missingText(o.missing) : 'Nessun outfit per questo impegno.'),
+      wearButton(plan, items, o.date),
+      h('button', { class: 'mini', onclick: () => other(i) }, evening ? 'Altra proposta per la sera' : 'Altra proposta'))
+  }
+  const byDate = new Map()
+  plan.outfits.forEach((o, i) => { if (!byDate.has(o.date)) byDate.set(o.date, []); byDate.get(o.date).push([o, i]) })
+  const nEvenings = plan.outfits.filter((o) => o.part === 'evening').length
   return [
-    section(`In valigia: ${pack.length} ${pack.length === 1 ? 'capo' : 'capi'} per ${days.length} ${days.length === 1 ? 'giorno' : 'giorni'}`,
+    section(`In valigia: ${pack.length} ${pack.length === 1 ? 'capo' : 'capi'} per ${days.length} ${days.length === 1 ? 'giorno' : 'giorni'}${nEvenings ? ` e ${nEvenings} ${nEvenings === 1 ? 'sera' : 'sere'}` : ''}`,
       h('div', { class: 'pack' }, pack.map((p) => h('a', { class: 'cell', href: `#/capo/${p.item.id}` }, thumb(p.item),
-        h('span', { class: 'cell-n' }, itemName(p.item)), h('span', { class: 'cell-b' }, p.uses === 1 ? '1 giorno' : `${p.uses} giorni`)))),
+        h('span', { class: 'cell-n' }, itemName(p.item)), h('span', { class: 'cell-b' }, p.uses === 1 ? '1 volta' : `${p.uses} volte`)))),
       h('button', { class: 'link', onclick: regen }, 'Rifai la valigia da capo')),
-    h('div', { class: 'tripdays' }, plan.outfits.map((o, i) => {
-      const items = (o.items || []).map((id) => ids.get(id)).filter(live_)
-      return h('article', { class: 'outfit label tripday' },
-        h('header', null, h('h3', null, fmt(o.date, { weekday: 'long', day: 'numeric', month: 'short' })), h('span', { class: 'dress' }, DRESS[o.dress] || '')),
-        wxLine(w.data?.[o.date]),
-        items.length ? [strip(items), h('p', { class: 'names' }, items.map(itemName).join(' + ')), o.reason ? h('p', { class: 'reason' }, o.reason) : null]
-          : h('p', { class: 'fhint' }, o.missing ? missingText(o.missing) : 'Nessun outfit per questo giorno.'),
-        wearButton(plan, items, o.date),
-        h('button', { class: 'mini', onclick: () => {
-          const next = alternativeFor({ items: state.items, days, outfits: plan.outfits, i, weatherByDate: w.data || {} })
-          const outfits = plan.outfits.slice(); outfits[i] = next
-          patch('plans', plan.id, { outfits })
-        } }, 'Altra proposta'))
-    })),
+    h('div', { class: 'tripdays' }, [...byDate].map(([date, list]) => h('article', { class: 'outfit label tripday' },
+      h('header', null, h('h3', null, fmt(date, { weekday: 'long', day: 'numeric', month: 'short' }))),
+      wxLine(w.data?.[date]),
+      list.map(([o, i]) => block(o, i))))),
   ]
 }
 
@@ -198,9 +209,13 @@ export function renderForm(root, { go, params, rerender }) {
     } else {
       const s = ctl.start.value || today, e = ctl.end.value || s
       d.start_on = s; d.end_on = e < s ? s : e
-      const dressByDate = Object.fromEntries((d.days || []).map((x) => [x.date, x.dress]))
-      wrap.querySelectorAll('select[data-date]').forEach((el) => { dressByDate[el.dataset.date] = el.value })
-      d.days = daysFor(d.start_on, d.end_on, Object.entries(dressByDate).map(([date, dress]) => ({ date, dress })))
+      const byDate = Object.fromEntries((d.days || []).map((x) => [x.date, { ...x }]))
+      wrap.querySelectorAll('select[data-date]').forEach((el) => {
+        const x = (byDate[el.dataset.date] ||= { date: el.dataset.date })
+        if (el.dataset.part === 'evening') x.evening = el.value || null
+        else x.dress = el.value
+      })
+      d.days = daysFor(d.start_on, d.end_on, Object.values(byDate))
     }
   }
   async function find() {
@@ -227,6 +242,10 @@ export function renderForm(root, { go, params, rerender }) {
       !d.place && found.length ? h('ul', { class: 'cities' }, found.map((c) => h('li', null, h('button', { type: 'button', class: 'link', onclick: () => { collect(); d.place = c; found = []; build() } }, c.name)))) : null,
     ]
     const setAll = (dress) => { collect(); d.days = d.days.map((x) => ({ ...x, dress })); build() }
+    const setEvenings = (evening) => { collect(); d.days = d.days.map((x) => ({ ...x, evening })); build() }
+    const sel = (x, part) => h('select', { 'data-date': x.date, 'data-part': part, 'aria-label': `${fmt(x.date)}, ${PARTS[part].toLowerCase()}` },
+      part === 'evening' ? h('option', { value: '', selected: !x.evening }, 'Nessun cambio') : null,
+      Object.entries(DRESS).map(([k, v]) => h('option', { value: k, selected: (part === 'evening' ? x.evening : x.dress) === k }, v)))
     put(wrap,
       section(null,
         field('Nome', ctl.title),
@@ -235,10 +254,13 @@ export function renderForm(root, { go, params, rerender }) {
       kind === 'event'
         ? section('Dress code', ctl.dress)
         : section('Impegni giorno per giorno',
-          h('p', { class: 'fhint' }, d.days.length >= 21 ? 'Al massimo 21 giorni.' : 'Un dress code per ogni giornata: il primo e l’ultimo giorno spesso sono di viaggio (casual).'),
+          h('p', { class: 'fhint' }, d.days.length >= 21 ? 'Al massimo 21 giorni.' : 'Per ogni giornata il dress code del giorno e, se ti cambi, quello della sera (cena, evento). Il primo e l’ultimo giorno spesso sono di viaggio (casual).'),
           h('div', { class: 'allset' }, h('span', null, 'Tutti i giorni:'), Object.entries(DRESS).map(([k, v]) => h('button', { type: 'button', class: 'mini', onclick: () => setAll(k) }, v))),
-          h('div', { class: 'daylist' }, d.days.map((x) => h('label', { class: 'dayrow' }, h('span', null, fmt(x.date)),
-            h('select', { 'data-date': x.date }, Object.entries(DRESS).map(([k, v]) => h('option', { value: k, selected: x.dress === k }, v))))))),
+          h('div', { class: 'allset' }, h('span', null, 'Tutte le sere:'), h('button', { type: 'button', class: 'mini', onclick: () => setEvenings(null) }, 'Nessun cambio'),
+            ['casual', 'business_casual', 'smart', 'formal'].map((k) => h('button', { type: 'button', class: 'mini', onclick: () => setEvenings(k) }, DRESS[k]))),
+          h('div', { class: 'daylist' },
+            h('div', { class: 'dayrow head' }, h('small', null, PARTS.day), h('small', null, PARTS.evening)),
+            d.days.map((x) => h('div', { class: 'dayrow' }, h('span', null, fmt(x.date)), sel(x, 'day'), sel(x, 'evening'))))),
       section(null, field('Note', ctl.notes)),
       h('div', { class: 'savebar' },
         h('button', { type: 'button', class: 'btn ghost', onclick: () => history.back() }, 'Annulla'),
@@ -259,9 +281,13 @@ export function renderForm(root, { go, params, rerender }) {
 
 function addDaysIso(iso, n) { const x = new Date(iso + 'T12:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10) }
 function daysFor(start, end, prev) {
-  const by = Object.fromEntries((prev || []).map((x) => [x.date, x.dress]))
+  const by = Object.fromEntries((prev || []).map((x) => [x.date, x]))
   const list = datesBetween(start, end).slice(0, 21)
-  return list.map((date, i) => ({ date, dress: by[date] || (i === 0 || i === list.length - 1 ? 'casual' : 'business_casual') }))
+  return list.map((date, i) => {
+    const x = { date, dress: by[date]?.dress || (i === 0 || i === list.length - 1 ? 'casual' : 'business_casual') }
+    if (by[date]?.evening) x.evening = by[date].evening
+    return x
+  })
 }
 
 // Oggi: se un evento o un viaggio ha un outfit per oggi, lo mostra in cima alla pagina Oggi
@@ -270,14 +296,15 @@ export function todayPlanCard() {
   const ids = byId()
   for (const p of state.plans) {
     if (p.start_on > today || p.end_on < today) continue
-    const o = (p.outfits || []).find((x) => x?.date === today && x.items?.length)
-    if (!o) continue
-    const items = o.items.map((id) => ids.get(id)).filter(live_)
-    if (!items.length) continue
+    const parts = (p.outfits || []).filter((x) => x?.date === today && x.items?.length)
+      .map((o) => ({ o, items: o.items.map((id) => ids.get(id)).filter(live_) })).filter((x) => x.items.length)
+    if (!parts.length) continue
     return h('article', { class: 'outfit label planned' },
-      h('header', null, h('h3', null, p.kind === 'trip' ? `In viaggio: ${p.title}` : p.title), h('span', { class: 'dress' }, DRESS[o.dress || p.days?.[0]?.dress] || '')),
-      strip(items), h('p', { class: 'names' }, items.map(itemName).join(' + ')),
-      wearButton(p, items, today) || h('p', null),
+      h('header', null, h('h3', null, p.kind === 'trip' ? `In viaggio: ${p.title}` : p.title)),
+      parts.map(({ o, items }) => h('div', { class: 'tpart' + (o.part === 'evening' ? ' evening' : '') },
+        h('div', { class: 'tpart-h' }, o.part === 'evening' ? h('b', null, 'Stasera') : parts.length > 1 ? h('b', null, 'Di giorno') : null, h('span', { class: 'dress' }, DRESS[o.dress || p.days?.[0]?.dress] || '')),
+        strip(items), h('p', { class: 'names' }, items.map(itemName).join(' + ')),
+        wearButton(p, items, today))),
       h('a', { class: 'link', href: `#/eventi/${p.id}` }, 'Apri'))
   }
   return null
