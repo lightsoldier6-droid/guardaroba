@@ -155,17 +155,28 @@ export function fabricFromComposition(comp) {
 }
 
 export const SEASONS = { spring: 'Primavera', summer: 'Estate', autumn: 'Autunno', winter: 'Inverno' }
+// Formalità: 0 sport, 1 casual, 2 business casual / lavoro, 3 simil elegante / lavoro formale, 4 elegante.
+// Ogni categoria ha un intervallo [min, max]: fuori dall'intervallo il capo non viene proposto, qualunque occasione abbia.
+export const FORMALITY = {
+  shirt: [1, 4], tshirt: [0, 2], polo: [1, 2], polo_ls: [1, 3], knit: [1, 3], sweatshirt: [0, 1], vest: [2, 4],
+  blazer: [1, 4], suit: [2, 4], jacket: [0, 2], coat: [1, 4], raincoat: [1, 3],
+  trousers: [1, 4], jeans: [1, 2], shorts: [0, 1],
+  shoes_formal: [2, 4], loafers: [1, 3], sneakers: [0, 2], boots: [1, 3], sport_shoes: [0, 0], sandals: [1, 1],
+  belt: [1, 4],
+}
+export const OCC_LEVEL = { sport: 0, casual: 1, work: 2, formal: 3 }
+
 // Dress code per eventi e giornate di viaggio. occ: occasioni dei capi ammesse; jacket: giacca sartoriale
 // 'required' | 'preferred' | 'optional'; under: t-shirt e polo "sottogiacca" ammesse con la giacca; avoid: categorie escluse
 export const DRESS_CODES = {
-  business_casual: { label: 'Business casual', hint: 'Ufficio, riunioni, cene di lavoro', occ: ['work', 'formal'], jacket: 'preferred', under: true,
+  business_casual: { label: 'Business casual', hint: 'Ufficio, riunioni, cene di lavoro', level: 2, occ: ['work', 'formal'], jacket: 'preferred', under: true,
     avoid: ['shorts', 'sandals', 'sport_shoes', 'sweatshirt'] },
-  smart: { label: 'Simil elegante', hint: 'Eventi, inaugurazioni, cene', occ: ['formal', 'work'], jacket: 'required', under: true,
+  smart: { label: 'Simil elegante', hint: 'Eventi, inaugurazioni, cene', level: 3, occ: ['formal', 'work'], jacket: 'required', under: true,
     avoid: ['shorts', 'sandals', 'sport_shoes', 'sweatshirt', 'jeans', 'raincoat'] },
-  formal: { label: 'Elegante', hint: 'Cerimonie, CdA, gala', occ: ['formal'], jacket: 'required', under: false, suit: true,
+  formal: { label: 'Elegante', hint: 'Cerimonie, CdA, gala', level: 4, occ: ['formal'], jacket: 'required', under: false, suit: true,
     avoid: ['shorts', 'sandals', 'sport_shoes', 'sneakers', 'sweatshirt', 'jeans', 'tshirt', 'polo', 'polo_ls'] },
-  casual: { label: 'Casual', hint: 'Tempo libero, visite', occ: ['casual'], jacket: 'optional', under: false, avoid: [] },
-  sport: { label: 'Sport', hint: 'Allenamento, escursioni', occ: ['sport'], jacket: 'optional', under: false, avoid: [] },
+  casual: { label: 'Casual', hint: 'Tempo libero, visite', level: 1, occ: ['casual'], jacket: 'optional', under: false, avoid: [] },
+  sport: { label: 'Sport', hint: 'Allenamento, escursioni', level: 0, occ: ['sport'], jacket: 'optional', under: false, avoid: [] },
 }
 export const OCCASIONS = { formal: 'Lavoro formale', work: 'Lavoro informale', casual: 'Casual', sport: 'Sport' }
 export const OCCASION_HINT = { formal: 'Riunioni, CdA', work: 'Ufficio', casual: 'Tempo libero', sport: 'Allenamento' }

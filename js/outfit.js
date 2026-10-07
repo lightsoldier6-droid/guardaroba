@@ -1,5 +1,5 @@
 // Motore outfit: funzioni pure (nessun DOM, nessuna rete) — testabili e riusabili.
-import { CATEGORIES, COLORS, FABRICS, BROWNS, PATTERN_INFO, DRESS_CODES, seasonOfDate, colorAdj, patternAdj } from './taxonomy.js'
+import { CATEGORIES, COLORS, FABRICS, BROWNS, PATTERN_INFO, DRESS_CODES, FORMALITY, OCC_LEVEL, seasonOfDate, colorAdj, patternAdj } from './taxonomy.js'
 
 const DAY = 86400000
 export const toDay = (d) => (typeof d === 'string' ? d.slice(0, 10) : new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10))
@@ -152,17 +152,39 @@ export function onlyUnderJacket(item, occ) {
   return occ === 'work' && underJacketOf(item) && !fitsOccasion(item, occ)
 }
 
-// Regola della giornata: un'occasione (Oggi) oppure un dress code (eventi e viaggi)
+// Regola della giornata: un'occasione (Oggi) oppure un dress code (eventi e viaggi).
+// level: formalità richiesta (vedi FORMALITY); strict: senza la giacca richiesta niente proposte (eventi e viaggi)
 export function ruleFor({ occasion, dress } = {}) {
-  if (dress && DRESS_CODES[dress]) return { key: dress, ...DRESS_CODES[dress] }
+  if (dress && DRESS_CODES[dress]) return { key: dress, strict: true, ...DRESS_CODES[dress] }
   const occ = occasion || 'casual'
-  return { key: occ, occ: [occ], jacket: occ === 'formal' ? 'required' : 'optional', under: occ === 'work', avoid: [] }
+  return { key: occ, level: OCC_LEVEL[occ] ?? 1, occ: [occ], jacket: occ === 'formal' ? 'required' : 'optional', under: occ === 'work' || occ === 'formal',
+    avoid: occ === 'formal' ? ['shorts', 'sandals', 'sport_shoes', 'sweatshirt'] : occ === 'work' ? ['shorts', 'sandals', 'sport_shoes'] : [] }
 }
-// 'yes' = ammesso; 'jacket' = ammesso solo sotto una giacca; false = escluso
+// Intervallo di formalità del capo: quello della categoria, ristretto da fantasie vistose e dal denim
+export function formalityOf(item) {
+  let [lo, hi] = FORMALITY[item?.category] || [0, 4]
+  if (['print', 'dots'].includes(item?.pattern) && slotOf(item) === 'top') hi = Math.min(hi, 2)
+  if (item?.pattern === 'checks' && slotOf(item) === 'top') hi = Math.min(hi, 3)
+  if (item?.color_primary === 'denim' && item?.category !== 'jeans') hi = Math.min(hi, 2)
+  return [lo, hi]
+}
+// Livello "tipico" del capo: il centro del suo intervallo, avvicinato alle occasioni che gli hai dato
+function centerOf(item) {
+  const [lo, hi] = formalityOf(item)
+  const tags = (item?.occasions || []).map((o) => OCC_LEVEL[o]).filter((x) => x >= lo && x <= hi)
+  return tags.length ? (tags.reduce((a, b) => a + b, 0) / tags.length + (lo + hi) / 2) / 2 : (lo + hi) / 2
+}
+// 'yes' = ammesso; 'jacket' = ammesso solo sotto una giacca; false = escluso.
+// Le occasioni che hai segnato contano (un capo con occasioni va solo dove le hai messe); quelli senza occasioni
+// valgono per la loro categoria. In ogni caso un capo fuori dalla sua formalità non entra (completo nel casual, sneakers all'elegante).
 export function eligibleFor(item, rule) {
   if (rule.avoid?.includes(item.category)) return false
-  if (rule.occ.some((o) => fitsOccasion(item, o))) return 'yes'
-  if (rule.under && underJacketOf(item)) return 'jacket'
+  const [lo, hi] = formalityOf(item)
+  const L = rule.level ?? 1
+  const tagged = (item.occasions || []).length > 0
+  const tagsOk = tagged ? rule.occ.some((o) => fitsOccasion(item, o)) : true
+  if (L >= lo && L <= hi && tagsOk) return 'yes'
+  if (rule.under && underJacketOf(item) && L >= 2 && L <= hi + 1) return 'jacket'
   return false
 }
 export function seasonScore(item, season) {
@@ -182,6 +204,30 @@ function weatherAllows(item, need) {
   if (T >= 26 && ['knit', 'sweatshirt', 'jacket', 'coat'].includes(c)) return false
   if (CATEGORIES[c]?.slot === 'outer' && T >= 22 && !need.rain) return false
   return true
+}
+
+// ---------- Coerenza di stile ------------------------------------------
+// Abbinamenti che non si propongono mai, qualunque sia il punteggio
+function clashes({ top, mid, jacket, bottom, shoes }, L) {
+  if (jacket) {
+    if (bottom.category === 'shorts' || ['sport_shoes', 'sandals'].includes(shoes.category)) return true
+    if (top.category === 'sweatshirt' || mid?.category === 'sweatshirt') return true
+    if (jacket._suit && !bottom._suit && bottom.category === 'jeans') return true // giacca del completo con i jeans
+  }
+  const full = jacket?._suit && jacket._suit === bottom._suit
+  if (full && ['sneakers', 'sport_shoes', 'boots', 'sandals'].includes(shoes.category) && L >= 3) return true
+  if (full && top.category === 'tshirt' && L >= 3 && !underJacketOf(top)) return true
+  if (L >= 3 && bottom._suit && !jacket) return true // pantaloni del completo senza giacca nelle occasioni eleganti
+  return false
+}
+// Quanto l'outfit è della formalità giusta e coerente con sé stesso (niente completo con le sneakers da corsa)
+function formalityFit(o, L) {
+  const core = [o.top, o.bottom, o.shoes, o.jacket].filter(Boolean).map((x) => centerOf(orig(x)))
+  const dev = core.map((c) => Math.abs(c - L))
+  const fit = 1 - Math.min(1, dev.reduce((a, b) => a + b, 0) / core.length / 1.5)
+  const spread = Math.max(...core) - Math.min(...core)
+  const penalty = dev.reduce((s, d) => s + Math.max(0, d - 1) * 0.06, 0) + Math.max(0, spread - 1.5) * 0.08
+  return { fit, penalty }
 }
 
 // ---------- Generazione outfit ---------------------------------------
@@ -224,7 +270,7 @@ export function suggestOutfits({ items, wearLog, occasion, dress, weather, date 
 
   const missing = ['top', 'bottom', 'shoes'].filter((k) => !pools[k].length)
   if (rule.jacket === 'required' && !pools.jacket.length) missing.push('jacket')
-  if (missing.filter((k) => k !== 'jacket').length) return { outfits: [], missing, need, rule }
+  if (missing.filter((k) => k !== 'jacket').length || (rule.strict && missing.includes('jacket'))) return { outfits: [], missing, need, rule }
 
   const opt = (k, required) => (required && pools[k].length ? pools[k] : [null, ...pools[k]])
   const jackets = opt('jacket', rule.jacket === 'required')
@@ -232,10 +278,14 @@ export function suggestOutfits({ items, wearLog, occasion, dress, weather, date 
   const outers = opt('outer')
 
   const all = []
+  const hasSuit = pools.jacket.some((j) => j._suit && pools.bottom.some((b) => b._suit === j._suit))
   for (const top of pools.top) for (const bottom of pools.bottom) for (const shoes of pools.shoes)
     for (const mid of mids) for (const jacket of jackets) for (const outer of outers) {
       if (!jacket && needsJacket.has(top.id)) continue
       if (avoid?.has(sigOf({ top, mid, jacket, outer, bottom, shoes }))) continue
+      if (clashes({ top, mid, jacket, bottom, shoes }, rule.level ?? 1)) continue
+      // all'elegante, se hai un completo adatto, si va col completo intero
+      if (rule.suit && hasSuit && !(jacket?._suit && jacket._suit === bottom._suit)) continue
       const o = { top, mid, jacket, outer, bottom, shoes, belt: null }
       // cintura solo con pantaloni o jeans (anche quelli del completo), scelta in tinta con le scarpe
       if (BELT_BOTTOMS.includes(bottom.category) && pools.belt.length) {
@@ -255,9 +305,11 @@ export function suggestOutfits({ items, wearLog, occasion, dress, weather, date 
       if (need.wind && outer) bonus += 0.03
       if (occasion === 'work' && jacket) bonus += 0.02
       if (rule.jacket === 'preferred' && jacket) bonus += 0.05
-      if ((occasion === 'formal' || rule.suit) && isFullSuit(o)) bonus += 0.03
+      if ((occasion === 'formal' || rule.suit) && isFullSuit(o)) bonus += rule.suit ? 0.06 : 0.03
       if (o.belt && ['formal', 'work'].includes(occasion)) bonus += 0.02
-      const score = 0.4 * meanItem + 0.3 * harmony + 0.3 * warmthFit + bonus
+      if (top.category === 'tshirt' && shoes.category === 'shoes_formal') bonus -= 0.05 // t-shirt con le stringate: stride
+      const formal = formalityFit(o, rule.level ?? 1)
+      const score = 0.35 * meanItem + 0.27 * harmony + 0.25 * warmthFit + 0.13 * formal.fit + bonus - formal.penalty
       all.push({ o, score, harmony, warmthFit, warm })
     }
   all.sort((a, b) => b.score - a.score)
@@ -269,7 +321,7 @@ export function suggestOutfits({ items, wearLog, occasion, dress, weather, date 
   }
   // completi: fuori dal formale, se c'è uno spezzato valido quasi quanto le altre proposte, uno lo proponiamo
   const splitOf = (o) => !isFullSuit(o) && (o.jacket?._suit || o.bottom?._suit)
-  if (occasion !== 'formal' && picked.length && !picked.some((p) => splitOf(p.o))) {
+  if (occasion !== 'formal' && !rule.suit && picked.length && !picked.some((p) => splitOf(p.o))) {
     const sp = all.find((c) => splitOf(c.o) && c.score >= picked[0].score * 0.85)
     if (sp) picked.length >= count ? (picked[picked.length - 1] = sp) : picked.push(sp)
   }

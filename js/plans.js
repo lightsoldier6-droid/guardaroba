@@ -20,7 +20,7 @@ const maxTopUses = (n) => (n > 5 ? 2 : 1)
 function candidates({ items, day, weather, packed, topUses, nearTops, n, count = 10 }) {
   const exclude = new Set(nearTops)
   for (const [id, c] of topUses) if (c >= maxTopUses(n)) exclude.add(id)
-  const bias = (it) => (packed.has(it.id) ? (slotOf(it) === 'top' ? 0.04 : 0.3) : 0)
+  const bias = (it) => (packed.has(it.id) ? (slotOf(it) === 'top' ? 0.04 : 0.2) : 0)
   const res = suggestOutfits({ items, wearLog: [], dress: day.dress, weather, date: atNoon(day.date), count, bias, exclude, rotationNote: false })
   return {
     missing: res.missing, need: res.need,
@@ -67,9 +67,11 @@ const nearTopsOf = (slots, outfits, i) => {
   return outfits.flatMap((o, j) => (j !== i && o && [prev, d, next].includes(o.date) ? o.tops || [] : []))
 }
 const shift = (iso, n) => { const x = new Date(iso + 'T12:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10) }
+// PLAN_V: versione del motore; le valigie fatte con una versione precedente vengono rifatte da sole
+const PLAN_V = 2
 const entry = (slot, pick, k = 0) => (pick
-  ? { date: slot.date, part: slot.part, dress: slot.dress, items: pick.o.items.map((it) => it.id), tops: topsOf(pick.o), reason: pick.o.reason, alt: k }
-  : { date: slot.date, part: slot.part, dress: slot.dress, items: [], tops: [], reason: '', alt: 0 })
+  ? { v: PLAN_V, date: slot.date, part: slot.part, dress: slot.dress, items: pick.o.items.map((it) => it.id), tops: topsOf(pick.o), reason: pick.o.reason, alt: k }
+  : { v: PLAN_V, date: slot.date, part: slot.part, dress: slot.dress, items: [], tops: [], reason: '', alt: 0 })
 
 // days: [{ date, dress, evening? }], weatherByDate: { data: meteo }. Ritorna un outfit per ogni impegno (slotsOf), nello stesso ordine
 export function planTrip({ items, days, weatherByDate = {} }) {
@@ -101,7 +103,7 @@ export function alternativeFor({ items, days, outfits, i, weatherByDate = {} }) 
 // Le proposte salvate valgono ancora se corrispondono, nell'ordine, agli impegni del viaggio
 export function outfitsMatch(days, outfits) {
   const slots = slotsOf(days)
-  return (outfits || []).length === slots.length && slots.every((s, i) => outfits[i]?.date === s.date && partOf(outfits[i]) === s.part && outfits[i].dress === s.dress)
+  return (outfits || []).length === slots.length && slots.every((s, i) => outfits[i]?.v === PLAN_V && outfits[i]?.date === s.date && partOf(outfits[i]) === s.part && outfits[i].dress === s.dress)
 }
 
 // Valigia: capi distinti con il numero di giorni in cui servono, in ordine di tipo
