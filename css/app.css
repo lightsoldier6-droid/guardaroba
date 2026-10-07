@@ -235,7 +235,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--ink-2); outline:
 .count { display: flex; justify-content: space-between; align-items: center; color: var(--thread); font-size: 14px; margin: 10px 0; }
 .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px 8px; }
 .cell { text-decoration: none; min-width: 0; }
-.cell-n { display: block; font: 500 14px/1.2 var(--f-cond); margin-top: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cell-n { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font: 500 14px/1.2 var(--f-cond); margin-top: 5px; overflow: hidden; overflow-wrap: anywhere; }
 .cell-b { display: block; font-size: 12px; color: var(--thread); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .detail-photo { margin: 0 -16px; }

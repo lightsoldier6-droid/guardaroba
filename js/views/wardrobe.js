@@ -1,6 +1,6 @@
 import { h, put, add, icon, toast, thumb, fmtDate } from '../ui.js'
 import { state, upsert, patch, remove, removeFiles, uuid } from '../store.js'
-import { CATEGORIES, COLORS, FABRICS, SEASONS, OCCASIONS, FIT_FEEL, WARMTH, SIZE_SYSTEMS, MATCH_LEVEL, compositionToText } from '../taxonomy.js'
+import { PATTERNS, CATEGORIES, COLORS, FABRICS, SEASONS, OCCASIONS, FIT_FEEL, WARMTH, SIZE_SYSTEMS, MATCH_LEVEL, compositionToText } from '../taxonomy.js'
 import { itemName, slotOf, toDay, daysBetween, wearStats } from '../outfit.js'
 import { hydrate } from '../images.js'
 import { dropOwnPhotos } from '../itemsave.js'
@@ -22,8 +22,8 @@ const SLOT_TABS = { all: 'Tutto', top: 'Sopra', mid: 'Strati', jacket: 'Giacche'
 const SLOT_ORDER = ['top', 'mid', 'jacket', 'suit', 'outer', 'bottom', 'shoes', 'belt']
 const USE = { never: 'Mai indossati', idle: 'Fermi da 30+ giorni', recent: 'Indossati negli ultimi 7 giorni' }
 const SORTS = { type: 'Per tipo', recent: 'Ultimi aggiunti', name: 'Nome', least: 'Meno indossati', most: 'Più indossati' }
-const LIST_KEYS = ['cats', 'colors', 'seasons', 'occasions', 'fabrics']
-const F0 = () => ({ slot: 'all', cats: [], colors: [], seasons: [], occasions: [], fabrics: [], brand: '', use: '', sort: 'type' })
+const LIST_KEYS = ['cats', 'colors', 'patterns', 'seasons', 'occasions', 'fabrics']
+const F0 = () => ({ slot: 'all', cats: [], colors: [], patterns: [], seasons: [], occasions: [], fabrics: [], brand: '', use: '', sort: 'type' })
 const STORE_KEY = 'guardaroba.filtri'
 // i filtri restano tra un'apertura e l'altra dell'app (solo su questo telefono)
 function loadFilters() {
@@ -64,6 +64,7 @@ export function render(root, { go, rerender }) {
     if (!skip.includes('slot') && f.slot !== 'all' && slotOf(it) !== f.slot) return false
     if (!skip.includes('cats') && f.cats.length && !f.cats.includes(it.category)) return false
     if (!skip.includes('colors') && f.colors.length && !f.colors.includes(it.color_primary)) return false
+    if (!skip.includes('patterns') && f.patterns.length && !f.patterns.includes(it.pattern || 'solid')) return false
     if (!skip.includes('seasons') && f.seasons.length && it.seasons?.length && !f.seasons.some((s) => it.seasons.includes(s))) return false
     if (!skip.includes('occasions') && f.occasions.length && !f.occasions.some((o) => occsOf(it).includes(o))) return false
     if (!skip.includes('fabrics') && f.fabrics.length && !f.fabrics.includes(it.fabric)) return false
@@ -124,7 +125,7 @@ export function render(root, { go, rerender }) {
   // ---- pannello filtri
   const chipGroup = (title, k, dict, cnt) => {
     const keys = Object.keys(dict).filter((v) => cnt.get(v) || f[k].includes(v))
-    if (!keys.length) return null
+    if (keys.length < 2 && !f[k].length) return null // una sola voce non filtra niente
     return h('div', { class: 'fgroup' }, h('h4', null, title), h('div', { class: 'choices' }, keys.map((v) =>
       h('button', { type: 'button', class: 'choice fchip' + (f[k].includes(v) ? ' on' : ''), 'aria-pressed': String(f[k].includes(v)), onclick: () => toggle(k, v) },
         typeof dict[v] === 'string' ? dict[v] : dict[v].label, h('span', { class: 'n' }, cnt.get(v) || 0)))))
@@ -140,6 +141,7 @@ export function render(root, { go, rerender }) {
       colors.length ? h('div', { class: 'fgroup' }, h('h4', null, 'Colore'), h('div', { class: 'swatches' }, colors.map((c) =>
         h('button', { type: 'button', class: 'sw' + (f.colors.includes(c) ? ' on' : ''), 'aria-pressed': String(f.colors.includes(c)), onclick: () => toggle('colors', c) },
           h('i', { style: { background: COLORS[c].hex } }), h('span', null, `${COLORS[c].label} ${colCnt.get(c) || 0}`))))) : null,
+      chipGroup('Fantasia', 'patterns', PATTERNS, counts('patterns', (it) => it.pattern || 'solid')),
       chipGroup('Stagione', 'seasons', SEASONS, counts('seasons', (it) => (it.seasons?.length ? it.seasons : Object.keys(SEASONS)))),
       chipGroup('Occasione', 'occasions', OCCASIONS, counts('occasions', occsOf)),
       chipGroup('Tessuto', 'fabrics', FABRICS, counts('fabrics', (it) => it.fabric)),
@@ -158,6 +160,7 @@ export function render(root, { go, rerender }) {
   // ---- filtri attivi, da togliere uno per uno
   const active = [
     ...f.colors.map((v) => [COLORS[v]?.label, () => toggle('colors', v)]),
+    ...f.patterns.map((v) => [PATTERNS[v], () => toggle('patterns', v)]),
     ...f.seasons.map((v) => [SEASONS[v], () => toggle('seasons', v)]),
     ...f.occasions.map((v) => [OCCASIONS[v], () => toggle('occasions', v)]),
     ...f.fabrics.map((v) => [FABRICS[v]?.label, () => toggle('fabrics', v)]),
@@ -214,6 +217,7 @@ export function renderItem(root, { go, params }) {
     ['Taglia', it.size_label ? `${it.size_label} ${SIZE_SYSTEMS[it.size_system] || ''}`.trim() + ((it.size_alt || []).length ? ` (${it.size_alt.map((s) => `${s.label} ${SIZE_SYSTEMS[s.system]}`).join(', ')})` : '') : null],
     ['Vestibilità', it.fit],
     ['Come ti veste', FIT_FEEL[it.fit_feel]],
+    ['Fantasia', it.pattern && it.pattern !== 'solid' ? PATTERNS[it.pattern] : null],
     ['Tessuto', FABRICS[it.fabric]?.label],
     ['Composizione', compositionToText(it.composition)],
     ['Peso', WARMTH[it.warmth]],

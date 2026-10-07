@@ -1,5 +1,5 @@
 // Motore outfit: funzioni pure (nessun DOM, nessuna rete) — testabili e riusabili.
-import { CATEGORIES, COLORS, FABRICS, seasonOfDate, colorAdj } from './taxonomy.js'
+import { CATEGORIES, COLORS, FABRICS, BROWNS, PATTERN_INFO, seasonOfDate, colorAdj, patternAdj } from './taxonomy.js'
 
 const DAY = 86400000
 export const toDay = (d) => (typeof d === 'string' ? d.slice(0, 10) : new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10))
@@ -19,7 +19,7 @@ const orig = (x) => x?._orig || x
 const isFullSuit = (o) => !!(o.jacket?._suit && o.jacket._suit === o.bottom?._suit)
 
 // Cintura e scarpe: stessa famiglia di colore (nero con nero, marroni con marroni)
-const LEATHER = { black: 'black', charcoal: 'black', brown: 'brown', camel: 'brown', beige: 'brown', cream: 'brown' }
+const LEATHER = { black: 'black', charcoal: 'black', beige: 'brown', cream: 'brown', khaki: 'brown', ...Object.fromEntries(BROWNS.map((c) => [c, 'brown'])) }
 export function beltFit(belt, shoes) {
   if (!belt || !shoes) return 0
   const a = LEATHER[belt.color_primary], b = LEATHER[shoes.color_primary]
@@ -37,7 +37,10 @@ export function itemName(item) {
   if (item?.name) return item.name
   const cat = CATEGORIES[item?.category]?.label || 'Capo'
   const col = colorAdj(item?.color_primary, item?.category)
-  return col ? `${cat} ${col}` : cat
+  const pat = patternAdj(item?.pattern, item?.category)
+  // con una fantasia evidente conta anche il secondo colore: "Camicia rigata bianca e blu"
+  const sec = pat && col && (PATTERN_INFO[item.pattern]?.weight || 0) >= 0.7 ? colorAdj((item.colors_secondary || []).find((c) => c !== item.color_primary), item.category) : ''
+  return [cat, pat, sec ? `${col} e ${sec}` : col].filter(Boolean).join(' ')
 }
 
 // ---------- Rotazione ------------------------------------------------
@@ -112,13 +115,19 @@ export function harmonyScore(o) {
   const jacket = o.jacket?.color_primary
   const near = [[top, bot], [jacket, bot], [o.mid?.color_primary, bot]]
   if (near.some(([x, y]) => (x === 'black' && y === 'navy') || (x === 'navy' && y === 'black'))) s -= 0.12
-  if (bot === 'black' && (shoes === 'brown' || shoes === 'camel')) s -= 0.15
-  if (shoes === 'black' && ['brown', 'beige', 'camel', 'cream'].includes(bot)) s -= 0.08
+  if (bot === 'black' && BROWNS.includes(shoes)) s -= 0.15
+  if (shoes === 'black' && [...BROWNS, 'beige', 'cream', 'khaki'].includes(bot) && bot !== 'dark_brown') s -= 0.08
+  // marroni molto vicini tra loro (es. cacao e testa di moro) sopra e sotto: sembrano un completo sbagliato
+  if (BROWNS.includes(top) && BROWNS.includes(bot) && top !== bot && Math.abs(COLORS[top].l - COLORS[bot].l) < 0.1) s -= 0.06
   const isSuit = isFullSuit(o) || (jacket && jacket === bot)
   if (top && bot && top === bot && !isSuit && top !== 'denim') s -= 0.1
   if (isFullSuit(o)) s += 0.08
   else if (isSuit) s += 0.05
   else if (o.jacket?._suit || o.bottom?._suit) s -= 0.03 // spezzato: si fa, ma va dosato
+  // fantasie: una sola fantasia evidente per outfit. Conta quanto si notano le altre oltre la più forte
+  // (righe con quadri stona; un pantalone spigato sotto una camicia rigata quasi non pesa)
+  const pw = parts.map((p) => PATTERN_INFO[p.pattern]?.weight || 0).filter((w) => w > 0)
+  if (pw.length >= 2) s -= 0.12 * (pw.reduce((a, b) => a + b, 0) - Math.max(...pw))
   const bf = beltFit(o.belt, o.shoes)
   if (bf > 0) s += 0.04
   if (bf < 0) s -= 0.12

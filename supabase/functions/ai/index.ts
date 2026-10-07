@@ -37,13 +37,19 @@ const CATEGORIES = [
   'belt',
 ]
 const COLORS = [
-  'black', 'charcoal', 'grey', 'white', 'cream', 'beige', 'camel', 'brown',
-  'navy', 'blue', 'light_blue', 'denim', 'olive', 'sage', 'green', 'burgundy', 'red',
-  'pink', 'yellow', 'orange', 'purple',
+  'black', 'charcoal', 'grey', 'light_grey', 'white', 'cream', 'beige', 'khaki', 'taupe', 'camel',
+  'cognac', 'brown', 'cocoa', 'dark_brown',
+  'navy', 'avio', 'denim', 'light_blue', 'blue', 'teal',
+  'olive', 'sage', 'bottle_green', 'green', 'burgundy', 'red', 'rust', 'orange', 'mustard', 'yellow',
+  'pink', 'purple',
 ]
+// Come distinguere i colori vicini: usato in tutti i prompt
+const COLOR_HINTS = 'navy = blu scuro; avio = blu polvere/carta da zucchero; light_blue = azzurro/celeste; denim = blu jeans; teal = petrolio; light_grey = grigio chiaro/perla; charcoal = antracite; cream = panna/écru; khaki = kaki (beige verdastro); taupe = tortora (grigio-marrone); camel = cammello; cognac = cuoio (marrone aranciato del pellame); brown = marrone medio; cocoa = cacao/cioccolato; dark_brown = testa di moro (marrone quasi nero); sage = verde salvia; olive = verde oliva; bottle_green = verde bottiglia (verde molto scuro); rust = ruggine/terracotta; mustard = senape.'
 const SYSTEMS = ['IT', 'EU', 'UK', 'US', 'LETTER']
 const SEASONS = ['spring', 'summer', 'autumn', 'winter']
 const OCCASIONS = ['formal', 'work', 'casual', 'sport']
+const PATTERNS = ['solid', 'stripes', 'pinstripe', 'checks', 'glen', 'houndstooth', 'herringbone', 'micro', 'dots', 'print']
+const PATTERN_HINTS = 'solid = tinta unita; stripes = righe (rigato, bengala, millerighe); pinstripe = gessato (righe sottili su fondo scuro); checks = quadri (quadretti, vichy, madras, scozzese); glen = principe di Galles; houndstooth = pied de poule; herringbone = spigato/spina di pesce; micro = microfantasia (occhio di pernice, puntinato); dots = pois; print = stampa (floreale, paisley)'
 
 class HttpError extends Error {
   constructor(public status: number, message: string) { super(message) }
@@ -67,6 +73,7 @@ const ANALYZE_SCHEMA = {
     brand: { type: 'string' },
     color_primary: { type: 'string', enum: [...COLORS, 'unknown'] },
     colors_secondary: { type: 'array', items: { type: 'string', enum: COLORS } },
+    pattern: { type: 'string', enum: [...PATTERNS, 'unknown'] },
     composition: {
       type: 'array',
       items: {
@@ -88,7 +95,7 @@ const ANALYZE_SCHEMA = {
     ean: { type: 'string' },
     model_name: { type: 'string' },
   },
-  required: ['kind', 'category', 'brand', 'color_primary', 'colors_secondary', 'composition', 'fit',
+  required: ['kind', 'category', 'brand', 'color_primary', 'colors_secondary', 'pattern', 'composition', 'fit',
     'sizes', 'care', 'warmth', 'seasons', 'occasions', 'label_readable',
     'article_code', 'color_code', 'color_name', 'ean', 'model_name'],
 }
@@ -130,7 +137,8 @@ function analyzePrompt(hasPhoto: boolean, hasLabel: boolean): string {
 Estrai i dati e rispondi SOLO con JSON conforme allo schema. Regole:
 - category: uno tra ${CATEGORIES.join(', ')}. suit = completo (giacca e pantaloni dello stesso tessuto: etichetta che dice completo/abito/suit, o foto con entrambi i pezzi); polo = polo a maniche corte; polo_ls = polo a maniche lunghe (dall'etichetta solo se scritto: "manica lunga", "long sleeve", "L/S"; senza foto del capo e senza indicazione usa polo); belt = cintura; blazer = giacca sartoriale spaiata; jacket = giubbotto/bomber/giacca casual; knit = maglione o cardigan; vest = gilet. Se non riconoscibile: 'unknown'.
 - kind: 'footwear' per le scarpe, 'accessory' per le cinture, altrimenti 'garment'.
-- color_primary e colors_secondary: dal capo intero. Se c'è solo l'etichetta, usa un colore solo se è scritto (es. "Col. Navy", "Colore: blu"), altrimenti 'unknown' e lista vuota. Codici ammessi: ${COLORS.join(', ')} ('unknown' se non visibile). navy = blu scuro; denim = blu jeans; sage = verde salvia (verde grigiastro chiaro e smorzato); olive = verde oliva (scuro, tendente al marrone). Massimo 3 colori secondari, solo se ben visibili.
+- color_primary e colors_secondary: dal capo intero. Se c'è solo l'etichetta, usa un colore solo se è scritto (es. "Col. Navy", "Colore: blu"), altrimenti 'unknown' e lista vuota. Codici ammessi: ${COLORS.join(', ')} ('unknown' se non visibile). ${COLOR_HINTS} Massimo 3 colori secondari, solo se ben visibili.
+- pattern: ${PATTERN_HINTS}. Con una fantasia: color_primary è il colore del fondo, colors_secondary quello delle righe, dei quadri o del disegno (es. camicia bianca a righe blu: white + [blue]; pantaloni pied de poule bianco e nero: il colore che prevale + l'altro). Solo etichetta senza indicazione scritta: 'unknown'.
 - composition: fibre e percentuali come scritte in etichetta, fibra in italiano minuscolo (es. cotone, lana, elastan, poliestere, lino, cashmere, viscosa). Lista vuota se illeggibile.
 - sizes: TUTTE le taglie leggibili sull'etichetta con il loro sistema: IT, EU, UK, US, oppure LETTER per XS/S/M/L/XL. Per i pantaloni US scrivi la label come "W32 L34" o "32". Le taglie camicia in cm (es. 41) sono IT. Se il sistema non è indicato e il numero è tipico italiano (44-60) usa IT. Lista vuota se non leggibile.
 - fit: vestibilità se scritta (es. slim, regular, comfort, tailored), altrimenti stringa vuota.
@@ -253,7 +261,7 @@ export type Candidate = {
   description?: string // testo descrittivo del prodotto (solo uso interno, non restituito)
   details?: PageDetails // letti dall'AI sul testo della pagina, solo per i link incollati
 }
-export type PageDetails = { category: string; color_primary: string; colors_secondary: string[]; composition: { fiber: string; pct: number }[] }
+export type PageDetails = { category: string; color_primary: string; colors_secondary: string[]; pattern: string; composition: { fiber: string; pct: number }[] }
 export type Query = {
   brand: string; article_code: string; color_code: string; color_name: string
   ean: string; model_name: string; category: string
@@ -530,19 +538,21 @@ const PAGE_SCHEMA = {
     category: { type: 'string', enum: [...CATEGORIES, 'unknown'] },
     color_primary: { type: 'string', enum: [...COLORS, 'unknown'] },
     colors_secondary: { type: 'array', items: { type: 'string', enum: COLORS } },
+    pattern: { type: 'string', enum: [...PATTERNS, 'unknown'] },
     composition: {
       type: 'array',
       items: { type: 'object', properties: { fiber: { type: 'string' }, pct: { type: 'number' } }, required: ['fiber', 'pct'] },
     },
   },
-  required: ['category', 'color_primary', 'colors_secondary', 'composition'],
+  required: ['category', 'color_primary', 'colors_secondary', 'pattern', 'composition'],
 }
 function pagePrompt(c: Candidate, text: string): string {
   return `Questo è il testo della pagina di un capo d'abbigliamento o di una calzatura da uomo in un negozio online.
 Estrai SOLO ciò che è scritto nel testo, senza indovinare. Rispondi solo con JSON conforme allo schema.
 - category: uno tra ${CATEGORIES.join(', ')}; polo = polo a maniche corte, polo_ls = polo a maniche lunghe, knit = maglione o cardigan, blazer = giacca sartoriale, jacket = giubbotto. 'unknown' se non chiaro.
-- color_primary: il colore del prodotto descritto (nome del prodotto, campo colore o descrizione). Codici: ${COLORS.join(', ')}. navy = blu scuro; light_blue = azzurro/celeste; denim = blu jeans; cream = panna/écru; sage = verde salvia; olive = verde oliva. Se la pagina elenca solo i colori disponibili senza dire quale è questo prodotto: 'unknown'.
+- color_primary: il colore del prodotto descritto (nome del prodotto, campo colore o descrizione). Codici: ${COLORS.join(', ')}. ${COLOR_HINTS} Se la pagina elenca solo i colori disponibili senza dire quale è questo prodotto: 'unknown'.
 - colors_secondary: altri colori ben indicati (righe, dettagli, bordi), massimo 3; altrimenti lista vuota.
+- pattern: ${PATTERN_HINTS}. Con una fantasia color_primary è il fondo e colors_secondary le righe o il disegno. 'unknown' se il testo non lo dice.
 - composition: fibre con percentuale come scritte (tessuto esterno, non la fodera), fibra in italiano minuscolo (cotone, lana, elastan, poliestere, lino, cashmere, viscosa, poliammide, seta). Lista vuota se non scritta.
 
 Titolo: ${c.title}
@@ -566,6 +576,7 @@ async function pageDetails(c: Candidate, text: string): Promise<PageDetails | nu
     category: CATEGORIES.includes(out.category) ? out.category : '',
     color_primary: COLORS.includes(out.color_primary) ? out.color_primary : '',
     colors_secondary: (Array.isArray(out.colors_secondary) ? out.colors_secondary : []).filter((x: string) => COLORS.includes(x) && x !== out.color_primary).slice(0, 3),
+    pattern: PATTERNS.includes(out.pattern) ? out.pattern : '',
     composition: tot >= 95 && tot <= 105 ? comp : [],
   }
 }

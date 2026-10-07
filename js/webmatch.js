@@ -1,7 +1,7 @@
 // Dati trovati online → campi del capo. Logica pura, condivisa da scheda capo, negozio e raffica.
 // Regole: l'etichetta prevale (composizione, taglia); il web completa ciò che manca
 // (nome del modello, colore, categoria, prezzo di listino) e porta la foto di catalogo.
-import { CATEGORIES, COLORS, colorFromName, categoryFromText, fiberToItalian, textToComposition, fabricFromComposition } from './taxonomy.js'
+import { CATEGORIES, COLORS, PATTERNS, patternFromText, colorFromName, categoryFromText, fiberToItalian, textToComposition, fabricFromComposition } from './taxonomy.js'
 
 const empty = (v) => v == null || v === '' || (Array.isArray(v) && !v.length)
 
@@ -49,6 +49,7 @@ export function webFields(cand, variantIdx, { brand, matchLevel } = {}) {
       brand: cand.brand ? cand.brand.replace(/[®™©]/g, '').trim().slice(0, 40) || null : null,
       color_primary: color,
       colors_secondary: single && color === d.color_primary ? (d.colors_secondary || []).filter((c) => COLORS[c] && c !== color) : [],
+      pattern: patternFromText(`${cand.title} ${cand.url} ${colorName}`) || (PATTERNS[d.pattern] && d.pattern !== 'solid' ? d.pattern : null),
       name: modelName(cand, brand || cand.brand),
       category: categoryFromText(`${cand.title} ${cand.url}`) || (CATEGORIES[d.category] ? d.category : null),
       composition,

@@ -231,3 +231,10 @@ create policy "wardrobe: modifica propria" on storage.objects
 create policy "wardrobe: cancellazione propria" on storage.objects
   for delete to authenticated
   using (bucket_id = 'wardrobe' and (storage.foldername(name))[1] = (select auth.uid()::text));
+
+-- v4: fantasia del tessuto (tinta unita, righe, gessato, quadri, principe di Galles, pied de poule, spigato, microfantasia, pois, stampa).
+-- Con righe o quadri: color_primary = colore del fondo, colors_secondary = colori delle righe o dei quadri.
+alter table public.items add column if not exists pattern text;
+alter table public.items drop constraint if exists items_pattern_check;
+alter table public.items add constraint items_pattern_check
+  check (pattern is null or pattern in ('solid', 'stripes', 'pinstripe', 'checks', 'glen', 'houndstooth', 'herringbone', 'micro', 'dots', 'print'));

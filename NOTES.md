@@ -50,6 +50,12 @@ Colonne v2 di `items` (ricerca online): `article_code`, `color_code`, `ean`, `so
 Foto nel bucket privato `wardrobe`: `<user_id>/<item_id>/photo-<timestamp>.jpg`, `thumb-…`, `label-…`, `catalog-…`, `catalog-thumb-…`; il percorso è salvato nella riga del capo.
 Le etichette italiane e le regole (slot nell’outfit, peso, durata stimata) stanno in `js/taxonomy.js`: aggiungere una categoria non richiede modifiche al database. Va aggiunta anche all’elenco in `supabase/functions/ai/index.ts`.
 
+## Palette e fantasie (schema v4, ottobre 2026)
+- 32 colori raggruppati per famiglia: aggiunti grigio chiaro, kaki, tortora, cuoio, cacao, testa di moro, avio (carta da zucchero), petrolio, verde bottiglia, ruggine, senape. Cuoio, cacao, testa di moro e tortora contano come marroni per cintura e scarpe (`BROWNS` in `js/taxonomy.js`); avio fa da neutro come l'azzurro.
+- Colonna `pattern` (vincolo `items_pattern_check`): `solid` tinta unita, `stripes` righe, `pinstripe` gessato, `checks` quadri, `glen` principe di Galles, `houndstooth` pied de poule, `herringbone` spigato, `micro` microfantasia, `dots` pois, `print` stampa. Vale per tutti i capi (camicie, pantaloni, giacche…). Con una fantasia il colore dominante è il fondo e i secondari sono righe o disegno: la camicia bianca a righe blu è `white` + [`blue`] e si chiama "Camicia rigata bianca e blu"; per le fantasie discrete (gessato, spigato, microfantasia) il nome riporta solo il colore di fondo. La sagoma disegna la fantasia nel colore secondario.
+- Armonia: ogni fantasia ha un peso (righe, quadri, stampa 1; principe di Galles e pois 0,8; pied de poule 0,7; gessato 0,5; spigato e microfantasia 0,3). Con più fantasie si penalizza la somma dei pesi oltre la più forte: righe + quadri stona, camicia rigata + pantaloni spigati quasi non pesa.
+- La fantasia arriva dall'AI (foto del capo o testo della pagina) e dal titolo del prodotto ("righe", "bengala", "gessato", "vichy", "Galles", "pied de poule", "pepita", "spina di pesce", "pois", "paisley"…). È anche un filtro dell'armadio.
+
 ## Come ragiona l’app
 - **Outfit del giorno** (`js/outfit.js`): filtra per occasione e meteo (niente shorts sotto i 19°, niente cappotto sopra i 18°…), dà a ogni capo un punteggio di rotazione (penalizzato se indossato negli ultimi 3 giorni, premiato se fermo da settimane) e di stagione, poi combina sopra/sotto/scarpe con strati facoltativi e sceglie le 3 combinazioni migliori e diverse tra loro. Pesi: 40% capi (rotazione e stagione), 30% armonia dei colori, 30% calore adatto alla temperatura percepita, più correzioni per pioggia e vento.
 - **Tessuto**: se non hai indicato il peso, il lino alleggerisce e lana o cashmere appesantiscono il capo; il lino è escluso sotto i 15° percepiti, lana e cashmere sopra i 26°; scarpe scamosciate o in tela sono penalizzate con la pioggia. In negozio, stesso capo e colore ma tessuto diverso conta come simile, non come doppione.
@@ -83,7 +89,7 @@ Le etichette italiane e le regole (slot nell’outfit, peso, durata stimata) sta
 
 **Euristiche**
 - Costo per utilizzo e utilizzi annui sono stime: quando il registro “indossato” copre almeno 30 giorni l’app usa i tuoi dati reali per quel ruolo, prima di allora una stima per occasione e stagione.
-- Fantasie (righe, quadri) non sono considerate nell’armonia: l’app ragiona solo su colori dominanti e secondari.
+- Le fantasie contano solo in modo semplice: più di una fantasia evidente (righe, quadri) nello stesso outfit è penalizzata, la microfantasia meno; righe e quadri contano come colore del fondo + colori delle righe.
 
 ## Cosa è stato verificato e cosa no
 Verificato in questa sessione:

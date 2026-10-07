@@ -1,7 +1,7 @@
 import { h, put, add, keepAnchor, catalogPaste, toast, choices, swatches, field, section, photoPicker } from '../ui.js'
 import { state } from '../store.js'
 import { saveItem } from '../itemsave.js'
-import { CATEGORIES, COLORS, SEASONS, OCCASIONS, OCCASION_HINT, FIT_FEEL, WARMTH, SIZE_SYSTEMS, FABRICS, compositionToText, textToComposition, fabricFromComposition } from '../taxonomy.js'
+import { PATTERNS, PATTERN_HINT, CATEGORIES, COLORS, SEASONS, OCCASIONS, OCCASION_HINT, FIT_FEEL, WARMTH, SIZE_SYSTEMS, FABRICS, compositionToText, textToComposition, fabricFromComposition } from '../taxonomy.js'
 import { prepare, prepareCatalog, toBase64, imageURL } from '../images.js'
 import { analyze, lookup, readLink, fetchImage, canLookup, validEan } from '../ai.js'
 import { webFields, mergeInto } from '../webmatch.js'
@@ -183,6 +183,7 @@ export function render(root, { go, params }) {
     draft.brand = ctl.brand.value.trim() || null
     draft.color_primary = ctl.color.value
     draft.colors_secondary = ctl.colors2.value.filter((c) => c !== draft.color_primary)
+    draft.pattern = ctl.pattern.value || null
     draft.composition = textToComposition(ctl.composition.value)
     draft.fit = ctl.fit.value.trim() || null
     draft.size_label = ctl.size.value.trim() || null
@@ -245,6 +246,7 @@ export function render(root, { go, params }) {
       cover: hasOwn && hasCat ? choices({ own: 'La mia foto', catalog: 'Catalogo' }, draft.cover || 'own') : null,
     }
     ctl.colors2 = swatches(draft.colors_secondary, { multi: true, exclude: () => ctl.color.value })
+    ctl.pattern = choices(PATTERNS, draft.pattern || null, { hints: PATTERN_HINT })
 
     const brands = [...new Set(state.items.map((i) => i.brand).filter(Boolean))].sort()
     const photoPreview = pending.photo ? URL.createObjectURL(pending.photo.thumb) : null
@@ -277,7 +279,8 @@ export function render(root, { go, params }) {
         field(lab('Nome', 'name'), ctl.name),
         field(lab('Marca', 'brand'), ctl.brand),
         field(lab('Colore dominante', 'color_primary'), ctl.color, !pending.photo && !draft.photo_path && !web.picked ? 'Senza foto del capo il colore va scelto a mano o confermato dalla ricerca online.' : null),
-        field(lab('Colori secondari', 'colors_secondary'), ctl.colors2)),
+        field(lab('Colori secondari', 'colors_secondary'), ctl.colors2),
+        field(lab('Fantasia', 'pattern'), ctl.pattern, 'Con una fantasia il colore dominante è il fondo, i secondari sono righe, quadri o disegno.')),
       section('Etichetta',
         field(lab('Composizione', 'composition'), ctl.composition),
         field(lab('Tessuto', 'fabric'), ctl.fabric, 'Il prevalente: si compila dalla composizione, puoi cambiarlo.'),

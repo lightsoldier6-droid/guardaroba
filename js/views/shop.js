@@ -1,6 +1,6 @@
 import { h, put, add, keepAnchor, toast, choices, swatches, field, section, photoPicker, thumb, verdictSymbol } from '../ui.js'
 import { state, latestMeasures } from '../store.js'
-import { CATEGORIES, COLORS, SEASONS, OCCASIONS, OCCASION_HINT, SIZE_SYSTEMS, FABRICS, compositionToText, textToComposition, fabricFromComposition } from '../taxonomy.js'
+import { PATTERNS, PATTERN_HINT, CATEGORIES, COLORS, SEASONS, OCCASIONS, OCCASION_HINT, SIZE_SYSTEMS, FABRICS, compositionToText, textToComposition, fabricFromComposition } from '../taxonomy.js'
 import { prepare, toBase64, hydrate } from '../images.js'
 import { analyze, readSizeGuide, lookup, readLink, canLookup } from '../ai.js'
 import { webFields, mergeInto } from '../webmatch.js'
@@ -9,7 +9,7 @@ import { evaluate } from '../shopping.js'
 import { itemName } from '../outfit.js'
 import { setDraft } from './itemForm.js'
 
-const blank = () => ({ category: null, color_primary: null, colors_secondary: [], composition: [], seasons: [], occasions: [], price: null, brand: '', size_system: null, fabric: null, aiFields: null, codes: null })
+const blank = () => ({ category: null, color_primary: null, colors_secondary: [], pattern: null, composition: [], seasons: [], occasions: [], price: null, brand: '', size_system: null, fabric: null, aiFields: null, codes: null })
 let cand = blank()
 let photos = { photo: null, label: null, guide: null }
 let guide = null
@@ -29,6 +29,7 @@ export function render(root, { go }) {
     cand.category = ctl.category.value || null
     cand.color_primary = ctl.color.value
     cand.colors_secondary = ctl.colors2.value.filter((c) => c !== cand.color_primary)
+    cand.pattern = ctl.pattern.value || null
     cand.seasons = ctl.seasons.value
     cand.occasions = ctl.occasions.value
     cand.size_system = ctl.system.value || null
@@ -54,7 +55,7 @@ export function render(root, { go }) {
       cand.aiFields = f
       const isEmpty = (v) => v == null || v === '' || (Array.isArray(v) && !v.length)
       const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
-      for (const k of ['category', 'color_primary', 'size_system', 'fabric', 'composition', 'colors_secondary', 'seasons', 'occasions', 'brand']) {
+      for (const k of ['category', 'color_primary', 'size_system', 'fabric', 'composition', 'colors_secondary', 'pattern', 'seasons', 'occasions', 'brand']) {
         if (!isEmpty(f[k]) && (isEmpty(cand[k]) || same(cand[k], prev[k]))) cand[k] = f[k]
       }
       cand.codes = r.codes
@@ -92,8 +93,8 @@ export function render(root, { go }) {
     const c = web.result?.candidates?.[ci]
     if (!c) return
     const w = webFields(c, vi, { brand: cand.brand, matchLevel: level })
-    const target = { category: cand.category, color_primary: cand.color_primary, colors_secondary: cand.colors_secondary, fabric: cand.fabric, composition: cand.composition }
-    const keys = mergeInto(target, { category: w.fields.category, color_primary: w.fields.color_primary, colors_secondary: w.fields.colors_secondary, fabric: w.fields.fabric, composition: w.fields.composition })
+    const target = { category: cand.category, color_primary: cand.color_primary, colors_secondary: cand.colors_secondary, pattern: cand.pattern, fabric: cand.fabric, composition: cand.composition }
+    const keys = mergeInto(target, { category: w.fields.category, color_primary: w.fields.color_primary, colors_secondary: w.fields.colors_secondary, pattern: w.fields.pattern, fabric: w.fields.fabric, composition: w.fields.composition })
     Object.assign(cand, target)
     webApplied = { keys, vals: Object.fromEntries(keys.map((k) => [k, JSON.stringify(cand[k] ?? null)])), w }
     web.picked = { ci, vi, level }; web.choosing = null
@@ -159,7 +160,7 @@ export function render(root, { go }) {
         ...f, ...Object.fromEntries(fromWeb.map((k) => [k, wf[k]])),
         article_code: cand.codes?.article_code || null, color_code: cand.codes?.color_code || null, ean: cand.codes?.ean || null,
         category: cand.category, kind: CATEGORIES[cand.category]?.kind, brand: cand.brand || f.brand || null,
-        color_primary: cand.color_primary, colors_secondary: cand.colors_secondary, seasons: cand.seasons, occasions: cand.occasions,
+        color_primary: cand.color_primary, colors_secondary: cand.colors_secondary, pattern: cand.pattern, seasons: cand.seasons, occasions: cand.occasions,
         price: cand.price, purchased_on: new Date().toISOString().slice(0, 10),
         size_system: cand.size_system || f.size_system || null,
         fabric: cand.fabric || f.fabric || null,
@@ -190,6 +191,7 @@ export function render(root, { go }) {
       price: h('input', { type: 'text', inputmode: 'decimal', value: cand.price ?? '', placeholder: '€' }),
     }
     ctl.colors2 = swatches(cand.colors_secondary, { multi: true, exclude: () => ctl.color.value })
+    ctl.pattern = choices(PATTERNS, cand.pattern, { hints: PATTERN_HINT })
     const url = (b) => (b ? URL.createObjectURL(b) : null)
 
     keepAnchor(wrap, () => put(wrap, 
@@ -205,6 +207,7 @@ export function render(root, { go }) {
         field('Categoria', ctl.category),
         field('Colore dominante', ctl.color),
         field('Colori secondari', ctl.colors2),
+        field('Fantasia', ctl.pattern),
         field('Composizione', ctl.composition),
         field('Tessuto', ctl.fabric),
         field('Stagioni', ctl.seasons),

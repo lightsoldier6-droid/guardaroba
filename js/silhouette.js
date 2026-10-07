@@ -59,6 +59,20 @@ const SUIT = {
 
 const shapeOf = (category) => category === 'suit' ? SUIT : SHAPES[category] || (CATEGORIES[category]?.kind === 'footwear' ? SHAPES.sneakers : SHAPES.tshirt)
 
+let uid = 0
+const range = (a, b, step) => { const out = []; for (let x = a; x < b; x += step) out.push(x); return out }
+// [percorso, spessore, terminazione]
+const PATTERN_DRAW = {
+  stripes: () => [range(2, 100, 5).map((x) => `M${x} 0V100`).join(''), 1.4],
+  pinstripe: () => [range(4, 100, 8).map((x) => `M${x} 0V100`).join(''), 0.6],
+  checks: () => [[...range(2, 100, 5).map((x) => `M${x} 0V100`), ...range(2, 100, 5).map((y) => `M0 ${y}H100`)].join(''), 1.1],
+  glen: () => [[...range(3, 100, 10).flatMap((x) => [`M${x} 0V100`, `M${x + 2} 0V100`]), ...range(3, 100, 10).flatMap((y) => [`M0 ${y}H100`, `M0 ${y + 2}H100`])].join(''), 0.5],
+  houndstooth: () => [range(3, 100, 7).flatMap((y) => range(((y / 7) % 2) * 3.5 + 1, 100, 7).map((x) => `M${x} ${y}l2 2l0 -2l2 2`)).join(''), 1.2],
+  herringbone: () => [range(0, 100, 6).flatMap((x) => range(0, 100, 4).map((y) => `M${x} ${y}l3 2l3 -2`)).join(''), 0.7],
+  micro: () => [range(6, 100, 6).flatMap((y) => range(3 + (y % 12 ? 3 : 0), 100, 6).map((x) => `M${x} ${y}h0.1`)).join(''), 1.6, 'round'],
+  dots: () => [range(5, 100, 9).flatMap((y) => range(4 + (y % 18 > 8 ? 4.5 : 0), 100, 9).map((x) => `M${x} ${y}h0.1`)).join(''), 3.6, 'round'],
+  print: () => [range(8, 100, 16).flatMap((y) => range(6 + (y % 32 > 15 ? 8 : 0), 100, 16).map((x) => `M${x} ${y}m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0M${x} ${y}h0.1`)).join(''), 1.2, 'round'],
+}
 export function silhouetteSVG(item) {
   const c = COLORS[item?.color_primary]
   const fill = c?.hex || '#c9cbc6'
@@ -67,8 +81,19 @@ export function silhouetteSVG(item) {
   const detail = sec ? sec.hex : light ? 'rgba(0,0,0,.28)' : 'rgba(255,255,255,.42)'
   const edge = light ? 'rgba(0,0,0,.30)' : 'rgba(0,0,0,.18)'
   const s = shapeOf(item?.category)
+  // fantasia nel colore secondario, ritagliata sulla sagoma
+  let pattern = ''
+  const draw = PATTERN_DRAW[item?.pattern]
+  if (draw) {
+    const id = `sil${++uid}`
+    const ink = sec ? sec.hex : light ? 'rgba(0,0,0,.35)' : 'rgba(255,255,255,.45)'
+    const [d, w, cap] = draw()
+    pattern = `<clipPath id="${id}"><path d="${s.shape}" fill-rule="evenodd"/></clipPath>`
+      + `<path d="${d}" stroke="${ink}" stroke-width="${w}" fill="none" stroke-linecap="${cap || 'butt'}" stroke-linejoin="miter" clip-path="url(#${id})" opacity=".85"/>`
+  }
   return `<svg viewBox="0 0 100 100" aria-hidden="true" stroke-linejoin="round" stroke-linecap="round">`
     + `<path d="${s.shape}" fill="${fill}" style="stroke:var(--sil-edge, ${edge})" stroke-width="1.8" fill-rule="evenodd"/>`
+    + pattern
     + `<path d="${s.detail}" fill="none" stroke="${detail}" stroke-width="${sec ? 2.2 : 1.6}"/>`
     + `</svg>`
 }
