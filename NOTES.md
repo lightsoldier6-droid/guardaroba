@@ -32,6 +32,12 @@ Safari/PWA ──(token utente)──▶ Supabase REST/Storage   (dati e foto, f
 - **Accesso**: email e password su un unico utente creato a mano, iscrizioni chiuse. Il link magico via email è stato escluso perché su iPhone si aprirebbe in Safari e non nell’app installata.
 - **Sicurezza della chiave AI**: la chiave Ollama esiste solo come secret della Edge Function; il frontend non contiene né l’indirizzo né la chiave di Ollama. La funzione accetta solo JWT validi di Supabase (`@supabase/server`) e, con `ALLOWED_USER_ID`, solo il tuo utente. `tools/check-secrets.sh` controlla il repository prima della pubblicazione.
 
+## Armadio: ricerca e filtri
+- Schede per tipo con il numero di capi (Sopra, Strati, Giacche…); dentro un tipo, una seconda riga con le categorie (es. Camicia, Polo, Polo a maniche lunghe).
+- Pulsante **Filtri**: colore principale, stagione, occasione, tessuto, marca, utilizzo (mai indossati, fermi da 30+ giorni, indossati negli ultimi 7) e ordinamento (per tipo, ultimi aggiunti, nome, meno o più indossati). Si vedono solo le voci presenti, ognuna col numero di capi che resterebbero; i filtri attivi compaiono come etichette da togliere una per una.
+- Capi senza stagioni valgono per tutte; senza occasioni valgono come Casual (come negli outfit). La ricerca libera guarda anche note e codice articolo.
+- "Per tipo" con Tutto divide la griglia in sezioni. I filtri restano salvati sul telefono (localStorage) tra un'apertura e l'altra.
+
 ## Modello dati (riusabile da un’app nativa senza migrazioni)
 | Tabella | Contenuto | Note |
 |---|---|---|

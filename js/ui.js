@@ -35,6 +35,7 @@ export const icon = {
   gear: svg('<circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/>'),
   camera: svg('<path d="M3 7.5h4l1.5-2.5h7L17 7.5h4V19H3Z"/><circle cx="12" cy="13" r="3.6"/>'),
   plus: svg('<path d="M12 4v16M4 12h16"/>'),
+  filter: svg('<path d="M4 6h16M7 12h10M10 18h4"/>', 18),
   back: svg('<path d="M15 5 8 12l7 7"/>'),
   check: svg('<path d="m4.5 12.5 4.5 4.5L19.5 6.5"/>'),
   info: svg('<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.2v.6"/>', 18),

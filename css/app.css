@@ -207,6 +207,31 @@ input:focus, select:focus, textarea:focus { border-color: var(--ink-2); outline:
 .toolbar { margin-bottom: 10px; }
 .tabs-mini { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 0 16px 2px; }
 .tabs-mini .choice { flex: none; min-height: 36px; padding: 6px 12px; }
+.tabs-mini .choice, .fchip { flex-direction: row; align-items: center; gap: 6px; }
+.choice .n { font: 400 13px/1 var(--f-body); color: var(--thread); font-variant-numeric: tabular-nums; }
+.choice.on .n { color: var(--rule); }
+.tabs-mini.sub { margin-top: 8px; }
+.tabs-mini.sub .choice { min-height: 32px; padding: 4px 10px; font-size: 15px; }
+.filterbar { display: flex; gap: 8px; align-items: stretch; }
+.filterbar input { flex: 1; min-width: 0; }
+.fbtn { flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 0 12px; min-height: 46px; border: 1px solid var(--rule); border-radius: 2px;
+  background: var(--surface); color: var(--ink); font: 500 16px var(--f-cond); }
+.fbtn.on { border-color: var(--ink); }
+.fbtn .badge { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--ink); color: var(--paper); font: 600 12px/20px var(--f-body); text-align: center; }
+.fpanel { margin: 12px 0 4px; padding: 12px 14px 14px; border: 1px solid var(--rule); background: var(--surface); }
+.fgroup + .fgroup { margin-top: 14px; }
+.fgroup h4 { margin: 0 0 8px; font: 600 13px var(--f-body); letter-spacing: .04em; text-transform: uppercase; color: var(--thread); }
+.fgroup .choices { gap: 6px; }
+.fchip { min-height: 36px; padding: 6px 11px; font-size: 15px; }
+.fpanel .swatches .sw span { font-size: 11px; }
+.fpanel-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--rule); }
+.active-f { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; }
+.achip { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 4px 6px 4px 10px; border: 1px solid var(--ink); border-radius: 16px;
+  background: var(--surface); color: var(--ink); font: 500 14px var(--f-cond); }
+.achip span { font-size: 17px; line-height: 1; color: var(--thread); padding: 0 2px; }
+.grp + .grp { margin-top: 22px; }
+.grp-h { display: flex; align-items: baseline; gap: 8px; margin: 0 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--rule); font: 600 18px var(--f-cond); }
+.grp-h span { font: 400 13px var(--f-body); color: var(--thread); }
 .count { display: flex; justify-content: space-between; align-items: center; color: var(--thread); font-size: 14px; margin: 10px 0; }
 .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px 8px; }
 .cell { text-decoration: none; min-width: 0; }
