@@ -555,7 +555,13 @@ export function parseShopifyProduct(data: unknown, pageUrl: string): Candidate |
 async function shopifyCandidate(pageUrl: string): Promise<{ cand: Candidate; text: string } | null> {
   const jsonUrl = shopifyJsonUrl(pageUrl)
   if (!jsonUrl) return null
-  const res = await safeFetch(jsonUrl, 'application/json', 3_000_000, 8_000)
+  let res
+  try { res = await safeFetch(jsonUrl, 'application/json', 3_000_000, 8_000) } catch (e) {
+    // "troppe richieste": Shopify spesso libera dopo un attimo, un secondo tentativo vale la pena
+    if (!/HTTP 429/.test((e as Error).message)) throw e
+    await new Promise((r) => setTimeout(r, 1500))
+    res = await safeFetch(jsonUrl, 'application/json', 3_000_000, 8_000)
+  }
   if (!/json/.test(res.type)) return null
   const text = new TextDecoder().decode(res.bytes)
   const cand = parseShopifyProduct(JSON.parse(text), pageUrl)
@@ -716,7 +722,9 @@ export async function lookup(body: Node) {
         color: '', material: '', sku: '', gtins: [], variants: [], isProduct: false, source: 'search',
       }
       const m = scoreCandidate(cand, `${hit.title} ${hit.content} ${hit.url}`, q)
-      if (m && m.level !== 'possible') matches.push(m)
+      // pagina illeggibile: la teniamo solo se titolo o indirizzo riportano il codice (i siti spazzatura lo citano solo nel testo)
+      const art = norm(q.article_code)
+      if (m && m.level !== 'possible' && (!art || norm(`${hit.title} ${hit.url}`).includes(art))) matches.push(m)
     }
   })
 
