@@ -179,3 +179,24 @@ export function photoPicker(label, { onpick, camera = false, preview } = {}) {
 }
 
 export const fmtDate = (d) => new Date(d + (d.length === 10 ? 'T12:00:00' : '')).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })
+
+// Foto di catalogo presa a mano: "Copia" sulla foto nel sito del negozio e qui "Incolla",
+// oppure scelta dalla libreria. Serve quando il negozio non lascia scaricare la foto al server.
+export function catalogPaste({ onblob, note } = {}) {
+  const pick = h('input', { type: 'file', accept: 'image/*', class: 'visually-hidden' })
+  const zone = h('div', { class: 'pastezone', contenteditable: 'true', role: 'textbox', 'aria-label': 'Incolla qui la foto copiata dal sito', inputmode: 'none', spellcheck: 'false' })
+  const take = (f) => { if (f && /^image\//.test(f.type)) onblob?.(f) }
+  zone.addEventListener('paste', (e) => {
+    e.preventDefault()
+    const items = [...(e.clipboardData?.items || [])]
+    const file = items.find((i) => i.kind === 'file' && /^image\//.test(i.type))?.getAsFile()
+    zone.textContent = ''
+    if (file) take(file)
+    else toast('Negli appunti non c’è una foto: sul sito tieni premuto sull’immagine e scegli “Copia”')
+  })
+  zone.addEventListener('input', () => { zone.textContent = '' })
+  pick.addEventListener('change', () => { take(pick.files?.[0]); pick.value = '' })
+  return h('div', { class: 'catpaste' },
+    h('p', { class: 'fhint' }, note || 'Foto del negozio a mano: sul sito tieni premuto sulla foto e scegli “Copia”, poi qui tocca il riquadro e “Incolla”.'),
+    h('div', { class: 'row-btn' }, zone, h('label', { class: 'btn ghost' }, pick, 'Dalla libreria')))
+}

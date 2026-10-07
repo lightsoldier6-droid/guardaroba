@@ -1,4 +1,4 @@
-import { h, put, add, keepAnchor, toast, choices, swatches, field, section, photoPicker } from '../ui.js'
+import { h, put, add, keepAnchor, catalogPaste, toast, choices, swatches, field, section, photoPicker } from '../ui.js'
 import { state } from '../store.js'
 import { saveItem } from '../itemsave.js'
 import { CATEGORIES, COLORS, SEASONS, OCCASIONS, OCCASION_HINT, FIT_FEEL, WARMTH, SIZE_SYSTEMS, FABRICS, compositionToText, textToComposition, fabricFromComposition } from '../taxonomy.js'
@@ -128,7 +128,7 @@ export function render(root, { go, params }) {
     for (const k of changed) { webFilled.add(k); webValues.set(k, JSON.stringify(draft[k] ?? null)) }
     web.picked = { ci, vi, level }; web.choosing = null; web.imgMsg = ''
     if (imageUrl) loadCatalog(imageUrl)
-    else web.imgMsg = 'Nessuna foto di catalogo su questa pagina: aggiungi la tua se vuoi.'
+    else web.imgMsg = 'Il negozio non lascia scaricare la foto: copiala dal sito e incollala qui sotto.'
     build()
   }
 
@@ -146,7 +146,7 @@ export function render(root, { go, params }) {
     } catch (e) {
       if (token !== imgToken) return
       collect()
-      web.imgMsg = `Foto di catalogo non scaricabile (${e.message}). Puoi aggiungere la tua.`
+      web.imgMsg = `Foto non scaricabile dal negozio (${e.message}): copiala dal sito e incollala qui sotto.`
     }
     web.imgBusy = false
     build()
@@ -265,6 +265,12 @@ export function render(root, { go, params }) {
       webPanel(web, { ...handlers, canSearch: canLookup(lookupQuery()) && !aiBusy, catalogPreview,
         hint: (pending.label || pending.photo) && !aiBusy && aiMsg ? 'Niente da cercare online: in etichetta non ci sono codici né marca. Scrivi la marca qui sotto e torna qui, oppure fotografa il cartellino.' : null }),
       !web.picked && !pending.catalog && draft.catalog_photo_path ? h('p', { class: 'fhint' }, 'Questo capo ha già una foto di catalogo: una nuova ricerca la sostituisce solo se scegli un altro risultato.') : null,
+      !pending.catalog && !draft.catalog_photo_path && !web.imgBusy && (web.picked || draft.source_url)
+        ? catalogPaste({ onblob: async (f) => {
+            try { pending.catalog = await prepareCatalog(f) } catch (e) { toast(e.message); return }
+            collect(); draft.cover = 'catalog'; web.imgMsg = ''; imgToken++; build(); toast('Foto di catalogo aggiunta')
+          } })
+        : null,
       ctl.cover ? field('Foto di copertina', ctl.cover, 'Quella che vedi nell’armadio e negli outfit.') : null,
       section('Che cos’è',
         field(lab('Categoria', 'category'), ctl.category),
