@@ -1,4 +1,4 @@
-import { h, put, add, keepAnchor, toast, choices, swatches, field, section, photoPicker, thumb, verdictSymbol } from '../ui.js'
+import { h, put, add, keepAnchor, scroller, toast, choices, swatches, field, section, photoPicker, thumb, verdictSymbol } from '../ui.js'
 import { state, latestMeasures } from '../store.js'
 import { PATTERNS, PATTERN_HINT, CATEGORIES, COLORS, SEASONS, OCCASIONS, OCCASION_HINT, SIZE_SYSTEMS, FABRICS, compositionToText, textToComposition, fabricFromComposition } from '../taxonomy.js'
 import { prepare, toBase64, hydrate } from '../images.js'
@@ -145,7 +145,7 @@ export function render(root, { go }) {
     requestAnimationFrame(() => wrap.querySelector('.verdict')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   }
 
-  function reset() { cand = blank(); photos = { photo: null, label: null, guide: null }; guide = null; result = null; msg = guideMsg = ''; web = newWebState(); webApplied = null; build(); window.scrollTo(0, 0) }
+  function reset() { cand = blank(); photos = { photo: null, label: null, guide: null }; guide = null; result = null; msg = guideMsg = ''; web = newWebState(); webApplied = null; build(); scroller().scrollTop = 0 }
 
   function bought() {
     const f = cand.aiFields || {}

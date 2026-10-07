@@ -75,6 +75,7 @@ Le etichette italiane e le regole (slot nell’outfit, peso, durata stimata) sta
 
 ## Limiti noti
 **iOS e PWA**
+- Guscio fisso (ottobre 2026): la pagina non scorre (`body` fisso), scorre solo `main#view`; barra in alto e tab sono normali elementi del layout, non `position: fixed`. Prima, su iPhone, la barra delle tab si alzava durante lo scorrimento. Per scorrere da codice usare `scroller()` di `js/ui.js`, non `window.scrollTo`. Effetto collaterale: il tocco sulla barra di stato non riporta in cima.
 - L’app installata ha memoria separata da Safari: l’accesso va fatto dall’icona. Se rimuovi l’icona, la cache locale si perde (i dati restano su Supabase).
 - Nessuna sincronizzazione in background: le modifiche in coda partono quando l’app è aperta (all’avvio, al ritorno della rete, ogni minuto). Non chiudere l’app subito dopo un salvataggio offline se ti serve vederlo su un altro dispositivo.
 - La fotocamera passa dal selettore standard di iOS (scatta o scegli dalla libreria), non da un mirino integrato.

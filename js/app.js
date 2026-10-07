@@ -60,16 +60,16 @@ function paint(fn, title, { tab = null, sub = false, tabs = true } = {}) {
   backBtn.hidden = !sub
   document.body.classList.toggle('no-tabs', !tabs)
   document.querySelectorAll('.tabbar a').forEach((a) => a.classList.toggle('on', a.dataset.tab === tab))
-  if (!document.body.dataset.keepScroll) window.scrollTo(0, 0)
+  if (!document.body.dataset.keepScroll) view.scrollTop = 0
 }
 
 function rerender() {
   if (!current) return
-  const y = window.scrollY
+  const y = view.scrollTop
   document.body.dataset.keepScroll = '1'
   route()
   delete document.body.dataset.keepScroll
-  window.scrollTo(0, y)
+  view.scrollTop = y
 }
 
 function paintSync() {

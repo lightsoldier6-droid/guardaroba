@@ -125,8 +125,10 @@ export const section = (title, ...children) => h('section', { class: 'sec', 'dat
 // Ridisegna senza far saltare la pagina: se arrivano risultati sopra ciò che stai guardando
 // (lettura AI, ricerca online), il campo che avevi sotto il dito resta nello stesso punto dello schermo.
 // Safari non ha l'ancoraggio automatico dello scorrimento, quindi lo facciamo a mano.
+// Contenitore che scorre: il contenuto (main#view), non la pagina
+export const scroller = () => document.getElementById('view') || document.scrollingElement
 export function keepAnchor(root, fn) {
-  if (window.scrollY < 4) return fn()
+  if (scroller().scrollTop < 4) return fn()
   const head = document.querySelector('.topbar')?.getBoundingClientRect().bottom || 0
   const before = [...root.querySelectorAll('[data-a]')].find((e) => e.getBoundingClientRect().bottom > head + 8)
   const key = before?.dataset.a, top = before?.getBoundingClientRect().top
@@ -134,7 +136,7 @@ export function keepAnchor(root, fn) {
   if (key == null) return
   const after = [...root.querySelectorAll('[data-a]')].find((e) => e.dataset.a === key)
   const d = after ? after.getBoundingClientRect().top - top : 0
-  if (Math.abs(d) > 1) window.scrollBy(0, d)
+  if (Math.abs(d) > 1) scroller().scrollBy(0, d)
 }
 
 // Su iOS lo stato :active (riscontro al tocco) funziona solo se la pagina ascolta i touchstart
