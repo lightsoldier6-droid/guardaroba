@@ -185,12 +185,15 @@ function weatherAllows(item, need) {
 }
 
 // ---------- Generazione outfit ---------------------------------------
+const sigOf = (o) => KEYS_SIG.map((k) => o[k]?.id || '').join('|')
+const KEYS_SIG = ['top', 'mid', 'jacket', 'outer', 'bottom', 'shoes']
 const KEYS = ['top', 'mid', 'jacket', 'outer', 'bottom', 'shoes']
 const SHOW = ['top', 'mid', 'jacket', 'outer', 'bottom', 'belt', 'shoes']
 const LIMIT = { top: 6, bottom: 6, shoes: 5, mid: 4, jacket: 4, outer: 4, belt: 4 }
 
 // bias(item): correzione del punteggio del capo (es. viaggi: capi già in valigia); exclude: id da non usare
-export function suggestOutfits({ items, wearLog, occasion, dress, weather, date = new Date(), count = 3, bias, exclude, rotationNote = true }) {
+// avoid: firme di outfit già proposti da non ripetere (vedi outfitSig)
+export function suggestOutfits({ items, wearLog, occasion, dress, weather, date = new Date(), count = 3, bias, exclude, avoid, rotationNote = true }) {
   const today = toDay(date)
   const season = seasonOfDate(date)
   const need = weatherNeeds(weather, date)
@@ -232,6 +235,7 @@ export function suggestOutfits({ items, wearLog, occasion, dress, weather, date 
   for (const top of pools.top) for (const bottom of pools.bottom) for (const shoes of pools.shoes)
     for (const mid of mids) for (const jacket of jackets) for (const outer of outers) {
       if (!jacket && needsJacket.has(top.id)) continue
+      if (avoid?.has(sigOf({ top, mid, jacket, outer, bottom, shoes }))) continue
       const o = { top, mid, jacket, outer, bottom, shoes, belt: null }
       // cintura solo con pantaloni o jeans (anche quelli del completo), scelta in tinta con le scarpe
       if (BELT_BOTTOMS.includes(bottom.category) && pools.belt.length) {
@@ -283,6 +287,7 @@ export function suggestOutfits({ items, wearLog, occasion, dress, weather, date 
       suit: isFullSuit(p.o) ? 'full' : (p.o.jacket?._suit || p.o.bottom?._suit) ? 'split' : null,
       score: Math.round(p.score * 100),
       raw: p.score,
+      sig: sigOf(p.o),
       reason: explain(p, need, scored, today, rotationNote),
     })),
     missing, need, rule,

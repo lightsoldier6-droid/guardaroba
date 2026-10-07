@@ -9,6 +9,8 @@ import { todayPlanCard } from './plans.js'
 const defaultOcc = () => { const d = new Date().getDay(); return d === 0 || d === 6 ? 'casual' : 'work' }
 let occasion = sessionStorage.getItem('occ') || defaultOcc()
 let weather // undefined = in caricamento, null = non disponibile
+// "Altre proposte": quello che hai già visto oggi per questa occasione non torna, e i capi già proposti scendono
+let seen = { key: '', sigs: new Set(), shown: new Map(), rounds: 0 }
 let loading = false
 
 async function loadWeather(force, rerender) {
@@ -29,7 +31,25 @@ export function render(root, { go, rerender }) {
   const occ = choices(OCCASIONS, occasion, { hints: OCCASION_HINT, onchange: (v) => { occasion = v || occasion; sessionStorage.setItem('occ', occasion); rerender() } })
 
   const wornToday = state.wearLog.filter((w) => w.worn_on === today)
-  const res = suggestOutfits({ items: state.items, wearLog: state.wearLog, occasion, weather: weather?.needPlace ? null : weather })
+  const key = `${today}|${occasion}`
+  if (seen.key !== key) seen = { key, sigs: new Set(), shown: new Map(), rounds: 0 }
+  const bias = seen.rounds ? (it) => -0.12 * (seen.shown.get(it.id) || 0) : undefined
+  let res = suggestOutfits({ items: state.items, wearLog: state.wearLog, occasion, weather: weather?.needPlace ? null : weather, avoid: seen.rounds ? seen.sigs : undefined, bias })
+  // finite le combinazioni nuove: si riparte da capo
+  if (seen.rounds && !res.outfits.length && !res.missing.filter((m) => m !== 'jacket').length) {
+    seen = { key, sigs: new Set(), shown: new Map(), rounds: 0 }
+    res = suggestOutfits({ items: state.items, wearLog: state.wearLog, occasion, weather: weather?.needPlace ? null : weather })
+    toast('Non ci sono altre combinazioni: ecco di nuovo le prime')
+  }
+  const more = () => {
+    for (const o of res.outfits) {
+      seen.sigs.add(o.sig)
+      for (const it of o.items) seen.shown.set(it.id, (seen.shown.get(it.id) || 0) + 1)
+    }
+    seen.rounds++
+    rerender()
+    requestAnimationFrame(() => document.querySelector('.outfits')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+  }
 
   add(root, 
     weatherStrip(go, rerender),
@@ -38,8 +58,11 @@ export function render(root, { go, rerender }) {
     wornToday.length ? wornCard(wornToday) : null,
     res.outfits.length && res.missing.includes('jacket') ? h('p', { class: 'note' }, 'Nessuna giacca sartoriale per il lavoro formale: le proposte ne sono prive.') : null,
     res.outfits.length
-      ? h('div', { class: 'outfits' }, res.outfits.map((o, i) => outfitCard(o, i, today, !!wornToday.length)))
+      ? h('div', { class: 'outfits' }, res.outfits.map((o, i) => outfitCard(o, i + 1 + seen.rounds * 3, today, !!wornToday.length)))
       : emptyState(res.missing, go),
+    res.outfits.length ? h('div', { class: 'more' },
+      h('button', { class: 'btn ghost', onclick: more }, h('span', { html: icon.sync }), 'Altre proposte'),
+      seen.rounds ? h('button', { class: 'link', onclick: () => { seen = { key, sigs: new Set(), shown: new Map(), rounds: 0 }; rerender() } }, 'Torna alle prime') : null) : null,
   )
   hydrate(root)
 }
@@ -72,7 +95,7 @@ function outfitCard(o, i, today, already) {
     toast('Segnato come indossato oggi')
   }
   return h('article', { class: 'outfit label' },
-    h('header', null, h('h3', null, `Proposta ${i + 1}`)),
+    h('header', null, h('h3', null, `Proposta ${i}`)),
     h('div', { class: 'strip' }, o.items.map((it) => h('a', { href: `#/capo/${it.id}`, class: 'strip-it' }, thumb(it), h('small', null, SLOTS[slotKey(o, it)])))),
     h('p', { class: 'names' }, o.items.map(itemName).join(' + ')),
     h('p', { class: 'reason' }, o.reason),
