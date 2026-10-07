@@ -1,7 +1,7 @@
 // Dati trovati online → campi del capo. Logica pura, condivisa da scheda capo, negozio e raffica.
 // Regole: l'etichetta prevale (composizione, taglia); il web completa ciò che manca
 // (nome del modello, colore, categoria, prezzo di listino) e porta la foto di catalogo.
-import { CATEGORIES, colorFromName, categoryFromText, fiberToItalian, textToComposition, fabricFromComposition } from './taxonomy.js'
+import { CATEGORIES, COLORS, colorFromName, categoryFromText, fiberToItalian, textToComposition, fabricFromComposition } from './taxonomy.js'
 
 const empty = (v) => v == null || v === '' || (Array.isArray(v) && !v.length)
 
@@ -37,14 +37,20 @@ export function compositionFromWeb(material) {
 // matchLevel: 'exact' | 'model' | 'chosen' — cosa verrà salvato nel capo.
 export function webFields(cand, variantIdx, { brand, matchLevel } = {}) {
   const v = variantOf(cand, variantIdx)
-  const colorName = v?.color || (cand.variants?.length > 1 ? '' : cand.color)
-  const composition = compositionFromWeb(cand.material)
+  const single = !(cand.variants?.length > 1)
+  const colorName = v?.color || (single ? cand.color : '')
+  // d: letti dall'AI sul testo della pagina (link incollati). Il colore vale solo se la pagina è di un colore solo.
+  const d = cand.details || {}
+  const aiComp = (d.composition || []).map((c) => ({ fiber: fiberToItalian(c.fiber), pct: c.pct }))
+  const composition = compositionFromWeb(cand.material).length ? compositionFromWeb(cand.material) : aiComp
+  const color = colorFromName(colorName) || (single && !v?.color && COLORS[d.color_primary] ? d.color_primary : null)
   return {
     fields: {
       brand: cand.brand ? cand.brand.replace(/[®™©]/g, '').trim().slice(0, 40) || null : null,
-      color_primary: colorFromName(colorName),
+      color_primary: color,
+      colors_secondary: single && color === d.color_primary ? (d.colors_secondary || []).filter((c) => COLORS[c] && c !== color) : [],
       name: modelName(cand, brand || cand.brand),
-      category: categoryFromText(`${cand.title} ${cand.url}`),
+      category: categoryFromText(`${cand.title} ${cand.url}`) || (CATEGORIES[d.category] ? d.category : null),
       composition,
       fabric: fabricFromComposition(composition),
       list_price: cand.price && (!cand.currency || cand.currency === 'EUR') ? Math.round(cand.price * 100) / 100 : null,
@@ -63,6 +69,8 @@ export function mergeInto(draft, fields, { protect = () => false, labelWins = ['
   for (const [k, v] of Object.entries(fields)) {
     if (empty(v)) continue
     if (labelWins.includes(k) && !empty(draft[k])) continue
+    // composizione già tua (etichetta o scritta a mano): il tessuto si ricava da quella, non dal web
+    if (k === 'fabric' && !empty(draft.composition) && !changed.includes('composition')) continue
     if (protect(k)) continue
     if (['source_url', 'match_level', 'list_price'].includes(k) || empty(draft[k])) {
       draft[k] = v; changed.push(k)

@@ -179,13 +179,13 @@ function parseJson(text: string): unknown {
   throw new Error('risposta del modello non in JSON')
 }
 
-async function callOllama(prompt: string, images: string[], schema: object) {
+async function callOllama(prompt: string, images: string[], schema: object, timeoutMs = OLLAMA_TIMEOUT_MS) {
   const key = Deno.env.get('OLLAMA_API_KEY')
   if (!key) throw new HttpError(500, 'Secret OLLAMA_API_KEY non impostato nella Edge Function')
   const errors: string[] = []
   for (const model of modelList()) {
     const ctrl = new AbortController()
-    const timer = setTimeout(() => ctrl.abort(), OLLAMA_TIMEOUT_MS)
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs)
     try {
       const res = await fetch(OLLAMA_URL, {
         method: 'POST',
@@ -250,7 +250,10 @@ export type Candidate = {
   url: string; domain: string; title: string; brand: string; image: string
   price: number | null; currency: string; color: string; material: string
   sku: string; gtins: string[]; variants: Variant[]; isProduct: boolean; source: 'page' | 'search'
+  description?: string // testo descrittivo del prodotto (solo uso interno, non restituito)
+  details?: PageDetails // letti dall'AI sul testo della pagina, solo per i link incollati
 }
+export type PageDetails = { category: string; color_primary: string; colors_secondary: string[]; composition: { fiber: string; pct: number }[] }
 export type Query = {
   brand: string; article_code: string; color_code: string; color_name: string
   ean: string; model_name: string; category: string
@@ -452,6 +455,121 @@ function abs(u: string, base: string): string {
 }
 const hostOf = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, '') } catch { return '' } }
 
+// --- Dettagli dal testo della pagina: composizione e colore ----------------
+// Molti negozi non mettono composizione e colore nei dati strutturati ma solo nel testo
+// ("Composizione: 98% cotone, 2% elastan", "Colore: blu navy").
+export function htmlToText(html: string): string {
+  return decodeEntities(html.slice(0, 1_500_000)
+    .replace(/<(script|style|noscript|svg|template)\b[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<br\s*\/?>|<\/(p|li|div|tr|dd|dt|h\d)>/gi, '\n')
+    .replace(/<[^>]+>/g, ' '))
+    .replace(/[ \t ]+/g, ' ').replace(/\s*\n\s*/g, '\n').trim()
+}
+
+const FIBER_RE = /^(cotone|cotton|coton|algod[oó]n|baumwolle|lino|linen|lin|leinen|lana|wool|laine|wolle|merino|cashmere|cachemire|kaschmir|seta|silk|soie|seide|viscosa|viscose|rayon|modal|lyocell|tencel|cupro|poliestere|polyester|poli[eé]ster|poliammide|polyamide|polyamid|nylon|elastan|elastane|elasthan|elastam|elastomultiestere|spandex|lycra|acrilico|acrylic|acrylique|alpaca|mohair|angora|pelle|leather|cuir|camoscio|suede|canapa|hemp|poliuretano|polyurethane|lanital|ramie)$/i
+const WORD = String.raw`[A-Za-zÀ-ÖØ-öø-ÿ]+`
+// "98% cotone biologico" → cotone; "virgin wool" → virgin wool; "Composizione cotone" → cotone
+function fiberIn(phrase: string, numberFirst: boolean): string {
+  const w = phrase.trim().split(/[\s-]+/)
+  const i = numberFirst ? w.findIndex((x) => FIBER_RE.test(x)) : w.findLastIndex((x) => FIBER_RE.test(x))
+  if (i < 0) return ''
+  if (numberFirst) return w.slice(0, i + 1).join(' ')
+  // nome prima del numero: tieni l'aggettivo davanti solo se è "virgin"/"organic" e simili
+  return (i > 0 && /^(virgin|organic|recycled|extra|fine)$/i.test(w[i - 1]) ? w.slice(i - 1, i + 1) : [w[i]]).join(' ')
+}
+type Hit = { at: number; end: number; fiber: string; pct: number }
+function compositionRun(hits: Hit[]): { at: number; text: string } | null {
+  let run: Hit[] = [], sum = 0
+  const done = () => ({ at: run[0].at, text: run.map((x) => `${x.pct}% ${x.fiber.toLowerCase()}`).join(', ') })
+  for (const h of hits) {
+    if (h.pct <= 0 || h.pct > 100) continue
+    const breaks = run.length && (h.at - run[run.length - 1].end > 60 || sum + h.pct > 105.5)
+    if (breaks && sum >= 95) return done() // composizione completa: la fodera o altro testo dopo non conta
+    if (breaks) { run = []; sum = 0 }
+    run.push(h); sum += h.pct
+  }
+  return run.length && sum >= 95 ? done() : null
+}
+export function compositionFromText(text: string): string {
+  if (!text) return ''
+  const t = text.slice(0, 600_000)
+  const a: Hit[] = [], b: Hit[] = []
+  for (const m of t.matchAll(new RegExp(String.raw`(\d{1,3}(?:[.,]\d+)?)\s*%\s*(${WORD}(?:[ -]${WORD}){0,2})`, 'g'))) {
+    const fiber = fiberIn(m[2], true)
+    if (fiber) a.push({ at: m.index!, end: m.index! + m[0].length, fiber, pct: parseFloat(m[1].replace(',', '.')) })
+  }
+  for (const m of t.matchAll(new RegExp(String.raw`(${WORD}(?:[ -]${WORD}){0,2})\s*[:\-]?\s*(\d{1,3}(?:[.,]\d+)?)\s*%`, 'g'))) {
+    const fiber = fiberIn(m[1], false)
+    if (fiber) b.push({ at: m.index!, end: m.index! + m[0].length, fiber, pct: parseFloat(m[2].replace(',', '.')) })
+  }
+  const runs = [compositionRun(a), compositionRun(b)].filter((x): x is { at: number; text: string } => !!x)
+  return runs.sort((x, y) => x.at - y.at)[0]?.text ?? ''
+}
+export function colorFromText(text: string): string {
+  const m = (text || '').match(/\b(?:colore|colour|color|couleur|farbe|kleur)\s*[:：]\s*([A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ' /-]{1,30})/i)
+  if (!m) return ''
+  return m[1].split(/\s{2,}|\n|\s[-–|/]\s|\b(?:taglia|size|composizione|composition|materiale|material|codice|art)\b/i)[0].trim()
+}
+// Brani di testo attorno alle parole chiave, per dare all'AI solo la parte utile della pagina
+export function keywordWindows(text: string, max = 6): string {
+  const out: string[] = []
+  let last = -1
+  for (const m of text.matchAll(/composizione|composition|materiale|material|tessuto|fabric|colore|colour|\bcolor\b|dettagli|details|descrizione|description/gi)) {
+    if (m.index! < last) continue
+    const a = Math.max(0, m.index! - 120), z = Math.min(text.length, m.index! + 350)
+    out.push(text.slice(a, z).replace(/\s+/g, ' '))
+    last = z
+    if (out.length >= max) break
+  }
+  return out.join('\n…\n')
+}
+
+const PAGE_SCHEMA = {
+  type: 'object',
+  properties: {
+    category: { type: 'string', enum: [...CATEGORIES, 'unknown'] },
+    color_primary: { type: 'string', enum: [...COLORS, 'unknown'] },
+    colors_secondary: { type: 'array', items: { type: 'string', enum: COLORS } },
+    composition: {
+      type: 'array',
+      items: { type: 'object', properties: { fiber: { type: 'string' }, pct: { type: 'number' } }, required: ['fiber', 'pct'] },
+    },
+  },
+  required: ['category', 'color_primary', 'colors_secondary', 'composition'],
+}
+function pagePrompt(c: Candidate, text: string): string {
+  return `Questo è il testo della pagina di un capo d'abbigliamento o di una calzatura da uomo in un negozio online.
+Estrai SOLO ciò che è scritto nel testo, senza indovinare. Rispondi solo con JSON conforme allo schema.
+- category: uno tra ${CATEGORIES.join(', ')}; polo = polo a maniche corte, polo_ls = polo a maniche lunghe, knit = maglione o cardigan, blazer = giacca sartoriale, jacket = giubbotto. 'unknown' se non chiaro.
+- color_primary: il colore del prodotto descritto (nome del prodotto, campo colore o descrizione). Codici: ${COLORS.join(', ')}. navy = blu scuro; light_blue = azzurro/celeste; denim = blu jeans; cream = panna/écru; sage = verde salvia; olive = verde oliva. Se la pagina elenca solo i colori disponibili senza dire quale è questo prodotto: 'unknown'.
+- colors_secondary: altri colori ben indicati (righe, dettagli, bordi), massimo 3; altrimenti lista vuota.
+- composition: fibre con percentuale come scritte (tessuto esterno, non la fodera), fibra in italiano minuscolo (cotone, lana, elastan, poliestere, lino, cashmere, viscosa, poliammide, seta). Lista vuota se non scritta.
+
+Titolo: ${c.title}
+Marca: ${c.brand}
+
+Testo:
+${text.slice(0, 6000)}`
+}
+async function pageDetails(c: Candidate, text: string): Promise<PageDetails | null> {
+  if (!text.trim() || !Deno.env.get('OLLAMA_API_KEY')) return null
+  // deno-lint-ignore no-explicit-any
+  const out: any = (await callOllama(pagePrompt(c, text), [], PAGE_SCHEMA, 20_000))?.result
+  if (!out || typeof out !== 'object') return null
+  const comp = (Array.isArray(out.composition) ? out.composition : [])
+    // deno-lint-ignore no-explicit-any
+    .filter((x: any) => x && typeof x.fiber === 'string' && Number(x.pct) > 0 && Number(x.pct) <= 100)
+    // deno-lint-ignore no-explicit-any
+    .map((x: any) => ({ fiber: x.fiber.trim().toLowerCase().slice(0, 30), pct: Number(x.pct) }))
+  const tot = comp.reduce((s: number, x: { pct: number }) => s + x.pct, 0)
+  return {
+    category: CATEGORIES.includes(out.category) ? out.category : '',
+    color_primary: COLORS.includes(out.color_primary) ? out.color_primary : '',
+    colors_secondary: (Array.isArray(out.colors_secondary) ? out.colors_secondary : []).filter((x: string) => COLORS.includes(x) && x !== out.color_primary).slice(0, 3),
+    composition: tot >= 95 && tot <= 105 ? comp : [],
+  }
+}
+
 export function parseProductPage(html: string, pageUrl: string): Candidate {
   const meta = metaTags(html)
   const nodes = jsonLdNodes(html)
@@ -483,6 +601,8 @@ export function parseProductPage(html: string, pageUrl: string): Candidate {
   // un solo "colore" ricavato: è il prodotto stesso, con il colore della pagina
   if (variants.length === 1 && !variants[0].color) variants[0].color = mainColor
   const { price, currency } = priceOf(main)
+  const description = [str(main.description), meta['og:description'] || meta['description'] || ''].filter(Boolean).join('\n')
+  const bodyText = htmlToText(html)
   const metaPrice = Number(String(meta['product:price:amount'] ?? meta['og:price:amount'] ?? '').replace(',', '.'))
   return {
     url: pageUrl,
@@ -492,8 +612,9 @@ export function parseProductPage(html: string, pageUrl: string): Candidate {
     image: abs(imageOf(main.image), pageUrl) || abs(meta['og:image:secure_url'] || meta['og:image'] || meta['twitter:image'] || '', pageUrl),
     price: price ?? (Number.isFinite(metaPrice) && metaPrice > 0 ? metaPrice : null),
     currency: currency || meta['product:price:currency'] || meta['og:price:currency'] || '',
-    color: mainColor || meta['product:color'] || '',
-    material: str(main.material),
+    color: mainColor || meta['product:color'] || (variants.length <= 1 ? colorFromText(description) : ''),
+    material: compositionFromText(str(main.material)) || str(main.material) || compositionFromText(description) || compositionFromText(bodyText),
+    description: [description, keywordWindows(bodyText)].filter(Boolean).join('\n'),
     sku: str(main.sku) || str(main.mpn) || meta['product:retailer_item_id'] || '',
     gtins: gtinsOf(main),
     variants,
@@ -542,12 +663,16 @@ export function parseShopifyProduct(data: unknown, pageUrl: string): Candidate |
   }
   const variants = [...byColor.values()]
   const first = Array.isArray(p.variants) ? p.variants[0] : null
+  const tags = Array.isArray(p.tags) ? p.tags.join(', ') : String(p.tags ?? '')
+  const description = [htmlToText(String(p.body_html ?? '')), tags].filter(Boolean).join('\n').slice(0, 20_000)
+  const oneColor = variants.length === 1 ? variants[0].color : ''
   const price = Number(String(first?.price ?? '').replace(',', '.'))
   return {
     url: pageUrl, domain: hostOf(pageUrl), title: decodeEntities(String(p.title)).trim(), brand: decodeEntities(String(p.vendor ?? '')).trim(),
     image: fix(images[0]?.src) || variants.find((v) => v.image)?.image || '',
     price: Number.isFinite(price) && price > 0 ? price : null, currency: '',
-    color: variants.length === 1 ? variants[0].color : '', material: '', sku: String(first?.sku ?? ''),
+    color: oneColor || (variants.length <= 1 ? colorFromText(description) : ''), material: compositionFromText(description),
+    description, sku: String(first?.sku ?? ''),
     gtins: [], variants: variants.length > 1 ? variants : variants.map((v) => ({ ...v })), isProduct: true, source: 'page',
   }
 }
@@ -783,7 +908,7 @@ export async function lookup(body: Node) {
     seenProd.add(k)
     return true
   })
-  const candidates = unique.slice(0, 4)
+  const candidates = unique.slice(0, 4).map(({ description: _d, ...m }) => m)
   return { level: candidates[0]?.level ?? 'none', queries, candidates, skipped }
 }
 
@@ -843,12 +968,19 @@ export async function readPage(raw: unknown, codes: { article_code?: unknown; co
     }).catch(() => null)
     if (!res?.ok) throw new HttpError(502, 'Il negozio non lascia leggere questa pagina: compila i campi a mano')
     const data = await res.json()
+    const content = String(data?.content ?? '').slice(0, 200_000)
     cand = {
       url: url.toString(), domain: hostOf(url.toString()), title: String(data?.title ?? ''), brand: '',
+      description: [content.slice(0, 2500), keywordWindows(content)].join('\n'),
       image: imagesFromText(String(data?.content ?? ''), (data?.links ?? []).map(String), empty)[0] ?? '',
-      price: null, currency: '', color: '', material: '', sku: '', gtins: [], variants: [], isProduct: true, source: 'search',
+      price: null, currency: '', color: colorFromText(content), material: compositionFromText(content), sku: '', gtins: [], variants: [], isProduct: true, source: 'search',
     }
   }
+  // composizione o colore non trovati nei dati: li legge l'AI dal testo della pagina (se non risponde, si va avanti)
+  const textForAi = [cand.description ?? ''].join('\n').trim()
+  const details = !cand.material || (!cand.color && cand.variants.length <= 1)
+    ? pageDetails(cand, textForAi).catch((e) => { console.error('dettagli pagina', (e as Error).message); return null })
+    : Promise.resolve(null)
   if (!cand.image) {
     const imgs = await ollamaPageImages(cand.url, { ...empty } as Query).catch(() => [])
     if (imgs[0]) cand.image = imgs[0]
@@ -857,6 +989,9 @@ export async function readPage(raw: unknown, codes: { article_code?: unknown; co
   const m: Match = { ...cand, level, why: 'link inserito da te', variant: cand.variants.length === 1 ? 0 : -1, suggested: -1 }
   const art = cleanText(codes.article_code, 40), col = cleanText(codes.color_code, 20)
   if (art && col && m.image && cand.variants.length <= 1) await fixImageColor(m, art, col).catch(() => false)
+  const d = await details
+  if (d) m.details = d
+  delete m.description
   return { level, queries: [], candidates: [m] }
 }
 

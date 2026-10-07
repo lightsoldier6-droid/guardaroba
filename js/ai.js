@@ -105,7 +105,7 @@ export async function fetchImage(url) {
 
 // Legge la pagina prodotto di un link incollato: stessa risposta di lookup, con un solo risultato
 export async function readLink(url, codes = {}) {
-  const r = await call({ action: 'page', url, article_code: codes.article_code || '', color_code: codes.color_code || '' }, 40000)
+  const r = await call({ action: 'page', url, article_code: codes.article_code || '', color_code: codes.color_code || '' }, 60000)
   r.candidates = (r.candidates || []).filter((c) => c && c.url)
   return r
 }
