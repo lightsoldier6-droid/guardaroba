@@ -18,7 +18,8 @@ function candCard(c, { actions = [], img } = {}) {
       h('b', null, c.displayTitle || modelName(c, c.brand) || c.title || c.domain),
       h('span', { class: 'muted' }, [c.domain, eur(c.price, c.currency)].filter(Boolean).join(' · ')),
       c.why ? h('span', { class: 'cand-why' }, `Riconosciuto da: ${c.why}`) : null,
-      c.imageFrom && c.imageFrom !== 'reader' ? h('span', { class: 'cand-why' }, `Foto presa da ${c.imageFrom} (stesso codice)`) : null,
+      c.imageFrom === 'colore' ? h('span', { class: 'cand-why' }, 'Foto del tuo colore, ricavata dal codice colore dell’etichetta') : null,
+      c.imageFrom && !['reader', 'colore'].includes(c.imageFrom) ? h('span', { class: 'cand-why' }, `Foto presa da ${c.imageFrom} (stesso codice)`) : null,
       c.source === 'search' && !c.image ? h('span', { class: 'cand-why' }, 'Il negozio non lascia leggere la pagina: niente foto, apri il link per vederla') : null,
       h('a', { href: c.url, target: '_blank', rel: 'noopener noreferrer', class: 'cand-link' }, 'Apri la pagina'),
       actions.length ? h('div', { class: 'cand-actions' }, actions) : null))

@@ -157,7 +157,7 @@ export function render(root, { go, params }) {
     if (web.picked) unapplyWeb()
     web = { ...newWebState(), status: 'busy' }; build()
     try {
-      const r = await readLink(url)
+      const r = await readLink(url, { article_code: draft.article_code, color_code: draft.color_code })
       collect()
       web = { ...newWebState(), status: 'done', result: r }
       if (r.level === 'exact') return applyCandidate(0, r.candidates[0].variant, 'chosen')

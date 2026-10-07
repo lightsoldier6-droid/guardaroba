@@ -568,6 +568,36 @@ async function shopifyCandidate(pageUrl: string): Promise<{ cand: Candidate; tex
   return cand ? { cand, text } : null
 }
 
+// --- Foto del colore giusto ------------------------------------------------
+// Molti negozi chiamano le foto <codice articolo><codice colore> (es. Falconeri UMM0064 + 9400 → UMM00649400-M.jpg).
+// Se la foto trovata è di un altro colore, proviamo lo stesso indirizzo con il codice colore della tua etichetta.
+export function swapColorInImage(img: string, article: string, color: string): string | null {
+  const art = article.replace(/[^A-Za-z0-9]/g, ''), col = color.replace(/[^A-Za-z0-9]/g, '')
+  if (!img || art.length < 4 || !col) return null
+  let u: URL
+  try { u = new URL(img) } catch { return null }
+  const re = new RegExp(`(${art.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})([-_]?)([A-Za-z0-9]{${col.length}})(?![A-Za-z0-9])`, 'i')
+  const m = u.pathname.match(re)
+  if (!m || m[3].toLowerCase() === col.toLowerCase()) return null
+  u.pathname = u.pathname.replace(re, `$1$2${col}`)
+  return u.toString()
+}
+
+async function imageExists(url: string): Promise<boolean> {
+  try {
+    const r = await safeFetch(url, 'image/*', 8_000_000, 8_000)
+    return !!sniffImage(r.bytes)
+  } catch { return false }
+}
+
+// Sostituisce la foto con quella del colore giusto, se esiste. true = sostituita
+async function fixImageColor(m: Candidate & { imageFrom?: string }, article: string, color: string): Promise<boolean> {
+  const alt = swapColorInImage(m.image, article, color)
+  if (!alt || !(await imageExists(alt))) return false
+  m.image = alt; m.imageFrom = 'colore'
+  return true
+}
+
 // --- Quanto corrisponde --------------------------------------------------
 export function scoreCandidate(c: Candidate, text: string, q: Query): Match | null {
   const compact = norm(text)
@@ -739,6 +769,11 @@ export async function lookup(body: Node) {
   // stesso codice su un altro sito: la foto del prodotto è la stessa
   const donor = matches.find((m) => m.image && m.level !== 'possible')
   for (const m of matches) if (!m.image && donor && m.level !== 'possible' && m !== donor) { m.image = donor.image; m.imageFrom = donor.domain }
+  // foto di un altro colore: prova quella con il codice colore dell'etichetta (solo se la variante non è già quella giusta)
+  if (q.color_code) {
+    await Promise.allSettled(matches.filter((m) => m.image && m.variant < 0 && m.level !== 'possible').slice(0, 3)
+      .map((m) => fixImageColor(m, q.article_code, q.color_code)))
+  }
   matches.sort((a, b) => RANK[b.level] - RANK[a.level] || italian(b) - italian(a) || Number(!!b.image) - Number(!!a.image) || b.variants.length - a.variants.length)
   // lo stesso prodotto trovato più volte sullo stesso sito conta una volta sola
   const seenProd = new Set<string>()
@@ -780,7 +815,7 @@ async function ollamaPageImages(url: string, q: Query): Promise<string[]> {
 }
 
 // --- Link incollato da te (azione "page") ----------------------------------
-export async function readPage(raw: unknown) {
+export async function readPage(raw: unknown, codes: { article_code?: unknown; color_code?: unknown } = {}) {
   if (typeof raw !== 'string' || raw.length > 2000) throw new HttpError(400, 'Link non valido')
   let url: URL
   try { url = new URL(raw.trim()) } catch { throw new HttpError(400, 'Link non valido') }
@@ -820,6 +855,8 @@ export async function readPage(raw: unknown) {
   }
   const level = cand.variants.length > 1 ? 'model' : 'exact'
   const m: Match = { ...cand, level, why: 'link inserito da te', variant: cand.variants.length === 1 ? 0 : -1, suggested: -1 }
+  const art = cleanText(codes.article_code, 40), col = cleanText(codes.color_code, 20)
+  if (art && col && m.image && cand.variants.length <= 1) await fixImageColor(m, art, col).catch(() => false)
   return { level, queries: [], candidates: [m] }
 }
 
@@ -881,7 +918,7 @@ export default {
       }
 
       if (action === 'page') {
-        return Response.json(await readPage(body.url))
+        return Response.json(await readPage(body.url, { article_code: body.article_code, color_code: body.color_code }))
       }
 
       if (action === 'fetch_image') {

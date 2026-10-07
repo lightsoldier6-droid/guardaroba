@@ -102,7 +102,7 @@ export function render(root, { go }) {
     collect(); unapply()
     web = { ...newWebState(), status: 'busy' }; build()
     try {
-      const r = await readLink(url)
+      const r = await readLink(url, { article_code: cand.codes?.article_code, color_code: cand.codes?.color_code })
       collect()
       web = { ...newWebState(), status: 'done', result: r }
       const c = r.candidates[0]
