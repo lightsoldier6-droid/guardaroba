@@ -238,3 +238,43 @@ alter table public.items add column if not exists pattern text;
 alter table public.items drop constraint if exists items_pattern_check;
 alter table public.items add constraint items_pattern_check
   check (pattern is null or pattern in ('solid', 'stripes', 'pinstripe', 'checks', 'glen', 'houndstooth', 'herringbone', 'micro', 'dots', 'print'));
+
+-- v5: capi che vanno bene sotto la giacca (anche dei completi). null = valore della categoria (sì per le polo)
+alter table public.items add column if not exists under_jacket boolean;
+
+-- ---------- Eventi e viaggi (v5) -----------------------------------------
+-- days: [{ date, dress }] con il dress code di ogni giorno; outfits: [{ date, items: [id capo], alt }] proposte salvate
+create table if not exists public.plans (
+  id         uuid primary key default gen_random_uuid(),
+  user_id    uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  kind       text not null check (kind in ('event', 'trip')),
+  title      text not null,
+  place      jsonb,                                   -- { name, lat, lon }
+  start_on   date not null,
+  end_on     date not null,
+  days       jsonb not null default '[]',
+  outfits    jsonb not null default '[]',
+  notes      text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  check (end_on >= start_on)
+);
+create index if not exists plans_user_start_idx on public.plans (user_id, start_on);
+drop trigger if exists plans_updated_at on public.plans;
+create trigger plans_updated_at before update on public.plans
+  for each row execute function public.set_updated_at();
+revoke all on public.plans from anon;
+grant select, insert, update, delete on public.plans to authenticated;
+alter table public.plans enable row level security;
+drop policy if exists "plans: lettura propria" on public.plans;
+drop policy if exists "plans: inserimento proprio" on public.plans;
+drop policy if exists "plans: modifica propria" on public.plans;
+drop policy if exists "plans: cancellazione propria" on public.plans;
+create policy "plans: lettura propria" on public.plans
+  for select to authenticated using ((select auth.uid()) = user_id);
+create policy "plans: inserimento proprio" on public.plans
+  for insert to authenticated with check ((select auth.uid()) = user_id);
+create policy "plans: modifica propria" on public.plans
+  for update to authenticated using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
+create policy "plans: cancellazione propria" on public.plans
+  for delete to authenticated using ((select auth.uid()) = user_id);

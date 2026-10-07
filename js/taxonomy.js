@@ -8,7 +8,7 @@
 export const CATEGORIES = {
   shirt:        { label: 'Camicia',            g: 'f', kind: 'garment',  slot: 'top',    group: 'shirts',   warmth: 1, life: 3 },
   tshirt:       { label: 'T-shirt',            g: 'f', kind: 'garment',  slot: 'top',    group: 'knit',     warmth: 1, life: 2 },
-  // underJacket: sottogiacca anche se segnato solo Casual (con la giacca sartoriale vale per il lavoro informale)
+  // underJacket: valore iniziale dell'interruttore "va bene sotto la giacca" (il capo può cambiarlo con under_jacket)
   polo:         { label: 'Polo',               g: 'f', kind: 'garment',  slot: 'top',    group: 'knit',     warmth: 1, life: 3, underJacket: true },
   polo_ls:      { label: 'Polo a maniche lunghe', g: 'f', kind: 'garment', slot: 'top', group: 'knit',     warmth: 1, life: 3, underJacket: true },
   knit:         { label: 'Maglione / cardigan', g: 'm', kind: 'garment', slot: 'mid',    group: 'knit',     warmth: 2, life: 5 },
@@ -155,6 +155,18 @@ export function fabricFromComposition(comp) {
 }
 
 export const SEASONS = { spring: 'Primavera', summer: 'Estate', autumn: 'Autunno', winter: 'Inverno' }
+// Dress code per eventi e giornate di viaggio. occ: occasioni dei capi ammesse; jacket: giacca sartoriale
+// 'required' | 'preferred' | 'optional'; under: t-shirt e polo "sottogiacca" ammesse con la giacca; avoid: categorie escluse
+export const DRESS_CODES = {
+  business_casual: { label: 'Business casual', hint: 'Ufficio, riunioni, cene di lavoro', occ: ['work', 'formal'], jacket: 'preferred', under: true,
+    avoid: ['shorts', 'sandals', 'sport_shoes', 'sweatshirt'] },
+  smart: { label: 'Simil elegante', hint: 'Eventi, inaugurazioni, cene', occ: ['formal', 'work'], jacket: 'required', under: true,
+    avoid: ['shorts', 'sandals', 'sport_shoes', 'sweatshirt', 'jeans', 'raincoat'] },
+  formal: { label: 'Elegante', hint: 'Cerimonie, CdA, gala', occ: ['formal'], jacket: 'required', under: false, suit: true,
+    avoid: ['shorts', 'sandals', 'sport_shoes', 'sneakers', 'sweatshirt', 'jeans', 'tshirt', 'polo', 'polo_ls'] },
+  casual: { label: 'Casual', hint: 'Tempo libero, visite', occ: ['casual'], jacket: 'optional', under: false, avoid: [] },
+  sport: { label: 'Sport', hint: 'Allenamento, escursioni', occ: ['sport'], jacket: 'optional', under: false, avoid: [] },
+}
 export const OCCASIONS = { formal: 'Lavoro formale', work: 'Lavoro informale', casual: 'Casual', sport: 'Sport' }
 export const OCCASION_HINT = { formal: 'Riunioni, CdA', work: 'Ufficio', casual: 'Tempo libero', sport: 'Allenamento' }
 export const FIT_FEEL = { tight: 'Stretto', right: 'Giusto', loose: 'Largo' }

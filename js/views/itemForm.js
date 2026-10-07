@@ -184,6 +184,11 @@ export function render(root, { go, params }) {
     draft.color_primary = ctl.color.value
     draft.colors_secondary = ctl.colors2.value.filter((c) => c !== draft.color_primary)
     draft.pattern = ctl.pattern.value || null
+    if (ctl.under) {
+      const v = ctl.under.value === 'yes'
+      // salva solo se diverso dal valore della categoria, così le polo restano "sì" anche se cambia la regola
+      draft.under_jacket = v === !!CATEGORIES[draft.category]?.underJacket && draft.under_jacket == null ? null : v
+    }
     draft.composition = textToComposition(ctl.composition.value)
     draft.fit = ctl.fit.value.trim() || null
     draft.size_label = ctl.size.value.trim() || null
@@ -210,7 +215,7 @@ export function render(root, { go, params }) {
   const lab = (text, k) => h('span', null, text, mark(k))
 
   function build() {
-    const catSelect = h('select', { required: true },
+    const catSelect = h('select', { required: true, onchange: () => { collect(); build() } },
       h('option', { value: '' }, 'Scegli…'),
       h('optgroup', { label: 'Abbigliamento' }, Object.entries(CATEGORIES).filter(([, c]) => c.kind === 'garment').map(([k, c]) => h('option', { value: k, selected: draft.category === k }, c.label))),
       h('optgroup', { label: 'Calzature' }, Object.entries(CATEGORIES).filter(([, c]) => c.kind === 'footwear').map(([k, c]) => h('option', { value: k, selected: draft.category === k }, c.label))),
@@ -247,6 +252,10 @@ export function render(root, { go, params }) {
     }
     ctl.colors2 = swatches(draft.colors_secondary, { multi: true, exclude: () => ctl.color.value })
     ctl.pattern = choices(PATTERNS, draft.pattern || null, { hints: PATTERN_HINT })
+    // "va bene sotto la giacca": solo per i capi che vanno sopra (camicie, t-shirt, polo)
+    const isTop = CATEGORIES[draft.category]?.slot === 'top'
+    const underNow = draft.under_jacket ?? !!CATEGORIES[draft.category]?.underJacket
+    ctl.under = isTop ? choices({ yes: 'Sì', no: 'No' }, underNow ? 'yes' : 'no') : null
 
     const brands = [...new Set(state.items.map((i) => i.brand).filter(Boolean))].sort()
     const photoPreview = pending.photo ? URL.createObjectURL(pending.photo.thumb) : null
@@ -293,6 +302,7 @@ export function render(root, { go, params }) {
       section('Quando lo usi',
         field(lab('Stagioni', 'seasons'), ctl.seasons),
         field(lab('Occasioni', 'occasions'), ctl.occasions),
+        ctl.under ? field('Va bene sotto la giacca', ctl.under, 'Anche sotto un completo. Con la giacca sartoriale viene proposto per il lavoro informale, il business casual e gli eventi simil eleganti, anche se non hai segnato quelle occasioni.') : null,
         field(lab('Peso', 'warmth'), ctl.warmth)),
       section('Come ti veste',
         field('Su di te è', ctl.fitFeel, 'Serve a imparare le tue taglie reali per marca.')),

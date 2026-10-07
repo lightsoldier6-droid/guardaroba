@@ -8,6 +8,7 @@ import * as shop from './views/shop.js'
 import * as measures from './views/measures.js'
 import * as settings from './views/settings.js'
 import * as batchView from './views/batchView.js'
+import * as plans from './views/plans.js'
 import * as batch from './batch.js'
 
 const view = document.getElementById('view')
@@ -22,6 +23,10 @@ const ROUTES = [
   [/^#\/capo\/([\w-]+)\/modifica$/, itemForm, 'closet', true, 'id'],
   [/^#\/capo\/([\w-]+)$/, { ...wardrobe, render: wardrobe.renderItem, title: 'Capo' }, 'closet', true, 'id'],
   [/^#\/raffica$/, batchView, 'closet', true],
+  [/^#\/eventi$/, plans, 'plans'],
+  [/^#\/eventi\/nuovo\/(evento|viaggio)$/, { ...plans, render: plans.renderForm, title: 'Nuovo', live: false }, 'plans', true, 'kind'],
+  [/^#\/eventi\/([\w-]+)\/modifica$/, { ...plans, render: plans.renderForm, title: 'Modifica', live: false }, 'plans', true, 'id'],
+  [/^#\/eventi\/([\w-]+)$/, { ...plans, render: plans.renderPlan }, 'plans', true, 'id'],
   [/^#\/negozio$/, shop, 'shop'],
   [/^#\/misure$/, measures, 'measure'],
   [/^#\/impostazioni$/, settings, null, true],
@@ -77,7 +82,7 @@ function paintSync() {
 let lastData = null
 subscribe(() => {
   paintSync()
-  const sig = `${state.items.length}|${state.wearLog.length}|${state.measures.length}|${state.lastSync}|${state.items.map((i) => i.updated_at || '').join()}`
+  const sig = `${state.items.length}|${state.wearLog.length}|${state.measures.length}|${state.plans.length}|${state.lastSync}|${state.items.map((i) => i.updated_at || '').join()}|${state.plans.map((p) => p.updated_at || '').join()}`
   if (current?.mod?.live && sig !== lastData) { lastData = sig; rerender() }
   else lastData = sig
 })

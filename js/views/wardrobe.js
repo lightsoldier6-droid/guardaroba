@@ -223,6 +223,7 @@ export function renderItem(root, { go, params }) {
     ['Peso', WARMTH[it.warmth]],
     ['Stagioni', (it.seasons || []).map((s) => SEASONS[s]).join(', ')],
     ['Occasioni', (it.occasions || []).map((s) => OCCASIONS[s]).join(', ')],
+    ['Sottogiacca', slotOf(it) === 'top' && (it.under_jacket ?? !!cat?.underJacket) ? 'Sì, anche sotto un completo' : null],
     ['Prezzo', it.price != null ? eur(it.price) : null],
     ['Prezzo di listino', it.list_price != null && Number(it.list_price) !== Number(it.price) ? eur(it.list_price) : null],
     ['Codice', [it.article_code, it.color_code].filter(Boolean).join(' · ') || null],

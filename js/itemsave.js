@@ -1,7 +1,7 @@
 // Salvataggio di un capo con le sue foto: usato dalla scheda capo e dalla conferma in blocco della raffica.
 import { state, upsert, upload, removeFiles, uuid, patch } from './store.js'
 
-export const FIELDS = ['kind', 'category', 'name', 'brand', 'color_primary', 'colors_secondary', 'pattern', 'composition', 'fabric', 'fit', 'size_label', 'size_system',
+export const FIELDS = ['kind', 'category', 'name', 'brand', 'color_primary', 'colors_secondary', 'pattern', 'under_jacket', 'composition', 'fabric', 'fit', 'size_label', 'size_system',
   'size_alt', 'care', 'warmth', 'seasons', 'occasions', 'fit_feel', 'price', 'purchased_on', 'photo_path', 'thumb_path', 'label_photo_path', 'notes', 'archived',
   'article_code', 'color_code', 'ean', 'source_url', 'match_level', 'list_price', 'catalog_photo_path', 'catalog_thumb_path', 'cover']
 export const ARRAYS = ['colors_secondary', 'composition', 'care', 'seasons', 'occasions', 'size_alt']

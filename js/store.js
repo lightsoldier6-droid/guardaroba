@@ -11,11 +11,11 @@ export const sb = configured
   : null
 
 export const BUCKET = 'wardrobe'
-const TABLES = ['items', 'wear_log', 'measurements']
-const KEY = { items: 'items', wear_log: 'wearLog', measurements: 'measures' }
+const TABLES = ['items', 'wear_log', 'measurements', 'plans']
+const KEY = { items: 'items', wear_log: 'wearLog', measurements: 'measures', plans: 'plans' }
 
 export const state = {
-  user: null, items: [], wearLog: [], measures: [],
+  user: null, items: [], wearLog: [], measures: [], plans: [],
   pending: 0, syncing: false, lastSync: null, online: navigator.onLine, errors: [],
 }
 const listeners = new Set()
@@ -26,16 +26,17 @@ const sortAll = () => {
   state.items.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
   state.wearLog.sort((a, b) => b.worn_on.localeCompare(a.worn_on))
   state.measures.sort((a, b) => b.measured_on.localeCompare(a.measured_on))
+  state.plans.sort((a, b) => String(a.start_on).localeCompare(String(b.start_on)))
 }
 
 async function saveCache() {
-  await idb.put('kv', { items: state.items, wearLog: state.wearLog, measures: state.measures, lastSync: state.lastSync, userId: state.user?.id }, 'cache')
+  await idb.put('kv', { items: state.items, wearLog: state.wearLog, measures: state.measures, plans: state.plans, lastSync: state.lastSync, userId: state.user?.id }, 'cache')
 }
 
 export async function loadCache(userId) {
   const c = await idb.get('kv', 'cache')
   if (c && c.userId === userId) {
-    state.items = c.items || []; state.wearLog = c.wearLog || []; state.measures = c.measures || []
+    state.items = c.items || []; state.wearLog = c.wearLog || []; state.measures = c.measures || []; state.plans = c.plans || []
     state.lastSync = c.lastSync || null
   }
   state.pending = await idb.count('outbox')
@@ -165,9 +166,11 @@ function describe(op) {
 export async function pull() {
   if (!sb || !state.user || !navigator.onLine) return false
   const res = await Promise.all(TABLES.map((t) => sb.from(t).select('*').limit(10000)))
-  const bad = res.find((r) => r.error)
+  // eventi e viaggi sono facoltativi: se la tabella non c'è ancora, il resto si sincronizza lo stesso
+  const bad = res.slice(0, 3).find((r) => r.error)
   if (bad) throw bad.error
   state.items = res[0].data; state.wearLog = res[1].data; state.measures = res[2].data
+  if (!res[3].error) state.plans = res[3].data
   // le modifiche non ancora inviate restano visibili
   for (const op of await idb.all('outbox')) applyLocal(op)
   state.lastSync = new Date().toISOString()
@@ -185,7 +188,7 @@ export async function sync() {
 
 export async function clearLocal() {
   await idb.clear('kv'); await idb.clear('outbox'); await idb.clear('img'); await idb.clear('batch').catch(() => {})
-  state.items = []; state.wearLog = []; state.measures = []; state.pending = 0; state.lastSync = null
+  state.items = []; state.wearLog = []; state.measures = []; state.plans = []; state.pending = 0; state.lastSync = null
   emit()
 }
 

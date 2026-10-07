@@ -4,6 +4,7 @@ import { suggestOutfits, toDay, itemName } from '../outfit.js'
 import { getWeather } from '../weather.js'
 import { OCCASIONS, OCCASION_HINT, SLOTS } from '../taxonomy.js'
 import { hydrate } from '../images.js'
+import { todayPlanCard } from './plans.js'
 
 const defaultOcc = () => { const d = new Date().getDay(); return d === 0 || d === 6 ? 'casual' : 'work' }
 let occasion = sessionStorage.getItem('occ') || defaultOcc()
@@ -32,6 +33,7 @@ export function render(root, { go, rerender }) {
 
   add(root, 
     weatherStrip(go, rerender),
+    todayPlanCard(),
     h('div', { class: 'occ' }, occ),
     wornToday.length ? wornCard(wornToday) : null,
     res.outfits.length && res.missing.includes('jacket') ? h('p', { class: 'note' }, 'Nessuna giacca sartoriale per il lavoro formale: le proposte ne sono prive.') : null,
