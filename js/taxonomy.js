@@ -9,6 +9,7 @@ export const CATEGORIES = {
   shirt:        { label: 'Camicia',            g: 'f', kind: 'garment',  slot: 'top',    group: 'shirts',   warmth: 1, life: 3 },
   tshirt:       { label: 'T-shirt',            g: 'f', kind: 'garment',  slot: 'top',    group: 'knit',     warmth: 1, life: 2 },
   polo:         { label: 'Polo',               g: 'f', kind: 'garment',  slot: 'top',    group: 'knit',     warmth: 1, life: 3 },
+  polo_ls:      { label: 'Polo a maniche lunghe', g: 'f', kind: 'garment', slot: 'top', group: 'knit',     warmth: 1, life: 3 },
   knit:         { label: 'Maglione / cardigan', g: 'm', kind: 'garment', slot: 'mid',    group: 'knit',     warmth: 2, life: 5 },
   sweatshirt:   { label: 'Felpa',              g: 'f', kind: 'garment',  slot: 'mid',    group: 'knit',     warmth: 2, life: 3 },
   vest:         { label: 'Gilet',              g: 'm', kind: 'garment',  slot: 'mid',    group: 'jackets',  warmth: 1, life: 5 },
@@ -195,7 +196,7 @@ export function colorFromName(name) {
 // Categoria dal titolo di una pagina prodotto (solo se l'etichetta non l'ha detta)
 const CATEGORY_WORDS = [
   [/\bcomplet[oi]\b|abito (da )?uomo|\bsuit\b|two[- ]piece|\bdue pezzi\b/, 'suit'], [/cintur|\bcinta\b|\bbelt\b/, 'belt'],
-  [/t-?shirt|tee\b|maglietta/, 'tshirt'], [/\bpolo\b/, 'polo'], [/camicia|shirt|chemise|camisa|hemd/, 'shirt'],
+  [/t-?shirt|tee\b|maglietta/, 'tshirt'], [/\bpolo\b.*(manic[ah] lung|maniche lunghe|long[- ]?sleeve|\bl\/?s\b|\bm\/l\b)|(manic[ah] lung|maniche lunghe|long[- ]?sleeve).*\bpolo\b/, 'polo_ls'], [/\bpolo\b/, 'polo'], [/camicia|shirt|chemise|camisa|hemd/, 'shirt'],
   [/felpa|sweatshirt|hoodie|sweat\b/, 'sweatshirt'], [/gilet|vest\b|waistcoat|smanicato/, 'vest'],
   [/maglion|cardigan|pullover|maglia|sweater|jumper|knit|dolcevita|turtleneck/, 'knit'],
   [/blazer|giacca (sartoriale|doppiopetto|monopetto)|suit jacket|sport coat|sportcoat/, 'blazer'],

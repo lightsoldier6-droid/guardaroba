@@ -30,7 +30,7 @@ const OLLAMA_TIMEOUT_MS = 70_000
 
 // Codici condivisi con l'app (js/taxonomy.js). Se ne aggiungi uno lì, aggiungilo anche qui.
 const CATEGORIES = [
-  'shirt', 'tshirt', 'polo', 'knit', 'sweatshirt', 'vest',
+  'shirt', 'tshirt', 'polo', 'polo_ls', 'knit', 'sweatshirt', 'vest',
   'blazer', 'suit', 'jacket', 'coat', 'raincoat',
   'trousers', 'jeans', 'shorts',
   'shoes_formal', 'loafers', 'sneakers', 'boots', 'sport_shoes', 'sandals',
@@ -128,7 +128,7 @@ function analyzePrompt(hasPhoto: boolean, hasLabel: boolean): string {
     : "L'immagine è un capo d'abbigliamento o una calzatura da uomo."
   return `${which}
 Estrai i dati e rispondi SOLO con JSON conforme allo schema. Regole:
-- category: uno tra ${CATEGORIES.join(', ')}. suit = completo (giacca e pantaloni dello stesso tessuto: etichetta che dice completo/abito/suit, o foto con entrambi i pezzi); belt = cintura; blazer = giacca sartoriale spaiata; jacket = giubbotto/bomber/giacca casual; knit = maglione o cardigan; vest = gilet. Se non riconoscibile: 'unknown'.
+- category: uno tra ${CATEGORIES.join(', ')}. suit = completo (giacca e pantaloni dello stesso tessuto: etichetta che dice completo/abito/suit, o foto con entrambi i pezzi); polo = polo a maniche corte; polo_ls = polo a maniche lunghe (dall'etichetta solo se scritto: "manica lunga", "long sleeve", "L/S"; senza foto del capo e senza indicazione usa polo); belt = cintura; blazer = giacca sartoriale spaiata; jacket = giubbotto/bomber/giacca casual; knit = maglione o cardigan; vest = gilet. Se non riconoscibile: 'unknown'.
 - kind: 'footwear' per le scarpe, 'accessory' per le cinture, altrimenti 'garment'.
 - color_primary e colors_secondary: dal capo intero. Se c'è solo l'etichetta, usa un colore solo se è scritto (es. "Col. Navy", "Colore: blu"), altrimenti 'unknown' e lista vuota. Codici ammessi: ${COLORS.join(', ')} ('unknown' se non visibile). navy = blu scuro; denim = blu jeans; sage = verde salvia (verde grigiastro chiaro e smorzato); olive = verde oliva (scuro, tendente al marrone). Massimo 3 colori secondari, solo se ben visibili.
 - composition: fibre e percentuali come scritte in etichetta, fibra in italiano minuscolo (es. cotone, lana, elastan, poliestere, lino, cashmere, viscosa). Lista vuota se illeggibile.
@@ -239,7 +239,7 @@ const MAX_PAGES = 6
 const UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1'
 const SKIP_HOSTS = /(^|\.)(pinterest\.[a-z.]+|youtube\.com|facebook\.com|instagram\.com|tiktok\.com|reddit\.com|wikipedia\.org|x\.com|twitter\.com|amazonaws\.com)$/
 const CATEGORY_WORDS: Record<string, string> = {
-  shirt: 'camicia', tshirt: 't-shirt', polo: 'polo', knit: 'maglione', sweatshirt: 'felpa', vest: 'gilet',
+  shirt: 'camicia', tshirt: 't-shirt', polo: 'polo', polo_ls: 'polo manica lunga', knit: 'maglione', sweatshirt: 'felpa', vest: 'gilet',
   blazer: 'giacca', jacket: 'giubbotto', coat: 'cappotto', raincoat: 'impermeabile', trousers: 'pantaloni',
   jeans: 'jeans', shorts: 'bermuda', shoes_formal: 'scarpe', loafers: 'mocassini', sneakers: 'sneakers',
   boots: 'stivaletti', sport_shoes: 'scarpe sportive', sandals: 'sandali', suit: 'completo', belt: 'cintura',
