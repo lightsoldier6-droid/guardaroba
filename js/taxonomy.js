@@ -8,8 +8,9 @@
 export const CATEGORIES = {
   shirt:        { label: 'Camicia',            g: 'f', kind: 'garment',  slot: 'top',    group: 'shirts',   warmth: 1, life: 3 },
   tshirt:       { label: 'T-shirt',            g: 'f', kind: 'garment',  slot: 'top',    group: 'knit',     warmth: 1, life: 2 },
-  polo:         { label: 'Polo',               g: 'f', kind: 'garment',  slot: 'top',    group: 'knit',     warmth: 1, life: 3 },
-  polo_ls:      { label: 'Polo a maniche lunghe', g: 'f', kind: 'garment', slot: 'top', group: 'knit',     warmth: 1, life: 3 },
+  // underJacket: sottogiacca anche se segnato solo Casual (con la giacca sartoriale vale per il lavoro informale)
+  polo:         { label: 'Polo',               g: 'f', kind: 'garment',  slot: 'top',    group: 'knit',     warmth: 1, life: 3, underJacket: true },
+  polo_ls:      { label: 'Polo a maniche lunghe', g: 'f', kind: 'garment', slot: 'top', group: 'knit',     warmth: 1, life: 3, underJacket: true },
   knit:         { label: 'Maglione / cardigan', g: 'm', kind: 'garment', slot: 'mid',    group: 'knit',     warmth: 2, life: 5 },
   sweatshirt:   { label: 'Felpa',              g: 'f', kind: 'garment',  slot: 'mid',    group: 'knit',     warmth: 2, life: 3 },
   vest:         { label: 'Gilet',              g: 'm', kind: 'garment',  slot: 'mid',    group: 'jackets',  warmth: 1, life: 5 },

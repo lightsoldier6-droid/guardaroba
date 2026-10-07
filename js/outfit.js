@@ -134,6 +134,11 @@ export function fitsOccasion(item, occ) {
   if ((occ === 'formal' || occ === 'work') && ['shorts', 'sandals'].includes(item.category)) return false
   return true
 }
+// Polo segnata solo Casual: per il lavoro informale va bene, ma solo sotto una giacca sartoriale
+export function onlyUnderJacket(item, occ) {
+  return occ === 'work' && !!CATEGORIES[item?.category]?.underJacket && !fitsOccasion(item, occ) && fitsOccasion(item, 'casual')
+}
+const isPolo = (it) => !!CATEGORIES[it?.category]?.underJacket
 export function seasonScore(item, season) {
   const s = item.seasons || []
   if (!s.length) return 0.7
@@ -166,17 +171,23 @@ export function suggestOutfits({ items, wearLog, occasion, weather, date = new D
   const scored = new Map()
 
   const pools = Object.fromEntries([...KEYS, 'belt'].map((k) => [k, []]))
+  const jacketOnly = [] // polo casual: entrano solo con la giacca
   for (const it of items || []) {
     if (it.archived) continue
     const slot = slotOf(it)
-    if (!slot || !fitsOccasion(it, occasion) || !weatherAllows(it, need)) continue
+    const bridged = onlyUnderJacket(it, occasion)
+    if (!slot || !(fitsOccasion(it, occasion) || bridged) || !weatherAllows(it, need)) continue
     const rot = rotationScore(stats.get(it.id), today)
     const sc = 0.55 * rot + 0.45 * seasonScore(it, season)
     scored.set(it.id, { sc, rot, stat: stats.get(it.id) })
     if (slot === 'suit') { const p = suitParts(it); pools.jacket.push(p.jacket); pools.bottom.push(p.bottom) }
+    else if (bridged) jacketOnly.push(it)
     else pools[slot].push(it)
   }
   for (const k of [...KEYS, 'belt']) pools[k] = pools[k].sort((a, b) => scored.get(b.id).sc - scored.get(a.id).sc).slice(0, LIMIT[k])
+  // al massimo due polo "solo con giacca", e solo se una giacca c'è
+  const needsJacket = new Set(pools.jacket.length ? jacketOnly.sort((a, b) => scored.get(b.id).sc - scored.get(a.id).sc).slice(0, 2).map((it) => it.id) : [])
+  pools.top.push(...jacketOnly.filter((it) => needsJacket.has(it.id)))
 
   const missing = ['top', 'bottom', 'shoes'].filter((k) => !pools[k].length)
   if (occasion === 'formal' && !pools.jacket.length) missing.push('jacket')
@@ -190,6 +201,7 @@ export function suggestOutfits({ items, wearLog, occasion, weather, date = new D
   const all = []
   for (const top of pools.top) for (const bottom of pools.bottom) for (const shoes of pools.shoes)
     for (const mid of mids) for (const jacket of jackets) for (const outer of outers) {
+      if (!jacket && needsJacket.has(top.id)) continue
       const o = { top, mid, jacket, outer, bottom, shoes, belt: null }
       // cintura solo con pantaloni o jeans (anche quelli del completo), scelta in tinta con le scarpe
       if (BELT_BOTTOMS.includes(bottom.category) && pools.belt.length) {
@@ -208,6 +220,7 @@ export function suggestOutfits({ items, wearLog, occasion, weather, date = new D
       if (need.rain && FABRICS[shoes.fabric]?.badInRain) bonus -= 0.12
       if (need.wind && outer) bonus += 0.03
       if (occasion === 'work' && jacket) bonus += 0.02
+      if (jacket && isPolo(top) && occasion !== 'formal') bonus += 0.03 // polo sotto la giacca: smart casual
       if (occasion === 'formal' && isFullSuit(o)) bonus += 0.03
       if (o.belt && ['formal', 'work'].includes(occasion)) bonus += 0.02
       const score = 0.4 * meanItem + 0.3 * harmony + 0.3 * warmthFit + bonus
@@ -256,6 +269,7 @@ function explain(p, need, scored, today) {
   if (isFullSuit(o)) bits.push('completo intero')
   else if (o.jacket?._suit) bits.push('spezzato: giacca del completo con altri pantaloni')
   else if (o.bottom?._suit) bits.push('spezzato: pantaloni del completo con un’altra giacca')
+  if (o.jacket && isPolo(o.top)) bits.push('polo sotto la giacca')
   if (o.belt) bits.push(beltFit(o.belt, o.shoes) > 0 ? 'cintura in tinta con le scarpe' : 'con cintura')
   if (accents.length === 0) bits.push(`neutri (${neutrals.slice(0, 2).map(colorName).join(' e ')})`)
   else if (accents.length === 1) bits.push(`${colorName(accents[0])} come unico accento`)
@@ -282,14 +296,15 @@ export function outfitsWith(candidate, items, { minHarmony = 0.6, maxPool = 30 }
   if (slot === 'belt') return beltOutfits(candidate, items)
   const candParts = slot === 'suit' ? suitParts({ ...candidate, id: candidate.id || '__cand' }) : null
   const seasons = candidate.seasons?.length ? candidate.seasons : ['spring', 'summer', 'autumn', 'winter']
-  const occs = candidate.occasions?.length ? candidate.occasions : ['casual']
+  let occs = candidate.occasions?.length ? candidate.occasions : ['casual']
+  if (onlyUnderJacket(candidate, 'work')) occs = [...occs, 'work']
   const seen = new Map()
   for (const season of seasons) for (const occ of occs) {
     const pool = { top: [], bottom: [], shoes: [], jacket: [] }
     for (const it of items) {
       if (it.archived || it.id === candidate.id) continue
       const s = slotOf(it)
-      if (!fitsOccasion(it, occ)) continue
+      if (!fitsOccasion(it, occ) && !onlyUnderJacket(it, occ)) continue
       if (it.seasons?.length && !it.seasons.includes(season)) continue
       if (s === 'suit') { const p = suitParts(it); pool.jacket.push(p.jacket); pool.bottom.push(p.bottom); continue }
       if (!(s in pool)) continue
@@ -304,8 +319,10 @@ export function outfitsWith(candidate, items, { minHarmony = 0.6, maxPool = 30 }
       const o = { top, bottom, shoes }
       if (candParts) o.jacket = candParts.jacket
       else if (!base.includes(slot)) o[slot] = candidate
+      const reqJacket = needJacket || (!o.jacket && onlyUnderJacket(top, occ))
+      if (reqJacket && !pool.jacket.length) continue
       let h = harmonyScore(o)
-      if (needJacket) h = Math.max(...pool.jacket.map((j) => harmonyScore({ ...o, jacket: j })))
+      if (reqJacket) h = Math.max(...pool.jacket.map((j) => harmonyScore({ ...o, jacket: j })))
       if (h < minHarmony) continue
       const key = [top.id, bottom.id, shoes.id].join('|')
       const prev = seen.get(key)
