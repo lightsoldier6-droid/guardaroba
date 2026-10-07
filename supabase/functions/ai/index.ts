@@ -502,6 +502,66 @@ export function parseProductPage(html: string, pageUrl: string): Candidate {
   }
 }
 
+// --- Negozi Shopify ---------------------------------------------------------
+// Molti negozi Shopify bloccano la pagina HTML ai programmi (HTTP 429/403) ma pubblicano gli stessi
+// dati in formato standard su /products/<nome>.json (titolo, marca, foto, varianti, prezzo, codici).
+export function shopifyJsonUrl(u: string): string | null {
+  try {
+    const x = new URL(u)
+    const m = x.pathname.match(/^(.*\/products\/[^/?#.]+)/)
+    return m ? `${x.origin}${m[1]}.json` : null
+  } catch { return null }
+}
+
+const COLOR_OPTION = /^(colou?re?s?|colore|farbe|couleur|tinta|color)$/i
+export function parseShopifyProduct(data: unknown, pageUrl: string): Candidate | null {
+  // deno-lint-ignore no-explicit-any
+  const p = (data as any)?.product
+  if (!p || typeof p !== 'object' || !p.title) return null
+  const fix = (u: unknown) => abs(String(u ?? '').replace(/^\/\//, 'https://'), pageUrl)
+  // deno-lint-ignore no-explicit-any
+  const images: any[] = Array.isArray(p.images) ? p.images : []
+  const byImageId = new Map(images.map((i) => [String(i.id), fix(i.src)]))
+  // deno-lint-ignore no-explicit-any
+  const opts: any[] = Array.isArray(p.options) ? p.options : []
+  const colorIdx = opts.findIndex((o) => COLOR_OPTION.test(String(o?.name ?? '').trim()))
+  const byColor = new Map<string, Variant>()
+  // deno-lint-ignore no-explicit-any
+  for (const v of (Array.isArray(p.variants) ? p.variants : []) as any[]) {
+    const color = colorIdx >= 0 ? decodeEntities(String(v[`option${colorIdx + 1}`] ?? '')).trim() : ''
+    const key = norm(color) || 'nocolor'
+    const cur = byColor.get(key) ?? {
+      color, sku: String(v.sku ?? ''), gtins: [], image: byImageId.get(String(v.image_id)) ?? '',
+      url: `${pageUrl.split('?')[0]}?variant=${v.id}`,
+    }
+    const bc = String(v.barcode ?? '').replace(/\D/g, '')
+    if (bc.length >= 8) cur.gtins = [...new Set([...cur.gtins, bc.length === 12 ? '0' + bc : bc])]
+    if (!cur.image && v.image_id) cur.image = byImageId.get(String(v.image_id)) ?? ''
+    byColor.set(key, cur)
+    if (byColor.size >= 24) break
+  }
+  const variants = [...byColor.values()]
+  const first = Array.isArray(p.variants) ? p.variants[0] : null
+  const price = Number(String(first?.price ?? '').replace(',', '.'))
+  return {
+    url: pageUrl, domain: hostOf(pageUrl), title: decodeEntities(String(p.title)).trim(), brand: decodeEntities(String(p.vendor ?? '')).trim(),
+    image: fix(images[0]?.src) || variants.find((v) => v.image)?.image || '',
+    price: Number.isFinite(price) && price > 0 ? price : null, currency: '',
+    color: variants.length === 1 ? variants[0].color : '', material: '', sku: String(first?.sku ?? ''),
+    gtins: [], variants: variants.length > 1 ? variants : variants.map((v) => ({ ...v })), isProduct: true, source: 'page',
+  }
+}
+
+async function shopifyCandidate(pageUrl: string): Promise<{ cand: Candidate; text: string } | null> {
+  const jsonUrl = shopifyJsonUrl(pageUrl)
+  if (!jsonUrl) return null
+  const res = await safeFetch(jsonUrl, 'application/json', 3_000_000, 8_000)
+  if (!/json/.test(res.type)) return null
+  const text = new TextDecoder().decode(res.bytes)
+  const cand = parseShopifyProduct(JSON.parse(text), pageUrl)
+  return cand ? { cand, text } : null
+}
+
 // --- Quanto corrisponde --------------------------------------------------
 export function scoreCandidate(c: Candidate, text: string, q: Query): Match | null {
   const compact = norm(text)
@@ -613,12 +673,21 @@ export async function lookup(body: Node) {
   }
 
   const pages = await Promise.allSettled(hits.slice(0, MAX_PAGES).map(async (hit) => {
-    const page = await safeFetch(hit.url, 'text/html,application/xhtml+xml', PAGE_MAX_BYTES, PAGE_TIMEOUT_MS, true)
-    if (!/html|xml/.test(page.type)) throw new Error('non è una pagina web')
-    const charset = page.type.match(/charset=([\w-]+)/)?.[1] ?? 'utf-8'
-    let html: string
-    try { html = new TextDecoder(charset).decode(page.bytes) } catch { html = new TextDecoder().decode(page.bytes) }
-    return { hit, html, url: page.url }
+    let html = '', url = hit.url, failure: Error | null = null
+    try {
+      const page = await safeFetch(hit.url, 'text/html,application/xhtml+xml', PAGE_MAX_BYTES, PAGE_TIMEOUT_MS, true)
+      if (!/html|xml/.test(page.type)) throw new Error('non è una pagina web')
+      const charset = page.type.match(/charset=([\w-]+)/)?.[1] ?? 'utf-8'
+      try { html = new TextDecoder(charset).decode(page.bytes) } catch { html = new TextDecoder().decode(page.bytes) }
+      url = page.url
+    } catch (e) { failure = e as Error }
+    // pagina bloccata o senza foto: se è un negozio Shopify, i dati standard del prodotto
+    if (failure || !/<meta[^>]+og:image|"image"\s*:/i.test(html)) {
+      const shop = await shopifyCandidate(url).catch(() => null)
+      if (shop) return { hit, html: html + ' ' + shop.text, url, shop: shop.cand }
+    }
+    if (failure) throw failure
+    return { hit, html, url, shop: null as Candidate | null }
   }))
 
   const matches: Match[] = []
@@ -626,11 +695,13 @@ export async function lookup(body: Node) {
   pages.forEach((p, i) => {
     const hit = hits[i]
     if (p.status === 'fulfilled') {
-      const cand = parseProductPage(p.value.html, p.value.url)
+      const cand = p.value.shop ?? parseProductPage(p.value.html, p.value.url)
       const m = scoreCandidate(cand, `${p.value.html} ${hit.content}`, q)
       if (m) matches.push(m)
     } else {
-      skipped.push(`${hostOf(hit.url)}: ${(p.reason as Error)?.message ?? 'errore'}`)
+      const why = (p.reason as Error)?.message ?? 'errore'
+      skipped.push(`${hostOf(hit.url)}: ${why}`)
+      if (/HTTP (404|410)/.test(why)) return // pagina che non esiste più: niente da proporre
       // pagina non scaricabile (molti negozi bloccano i download automatici): resta l'estratto della ricerca
       const cand: Candidate = {
         url: hit.url, domain: hostOf(hit.url), title: hit.title, brand: '', image: '', price: null, currency: '',
@@ -708,8 +779,13 @@ export async function readPage(raw: unknown) {
     let html: string
     try { html = new TextDecoder(charset).decode(page.bytes) } catch { html = new TextDecoder().decode(page.bytes) }
     cand = parseProductPage(html, page.url)
+    if (!cand.image) cand = (await shopifyCandidate(page.url).catch(() => null))?.cand ?? cand
   } catch (e) {
     if (e instanceof HttpError) throw e
+    const shop = await shopifyCandidate(url.toString()).catch(() => null)
+    if (shop) cand = shop.cand
+  }
+  if (!cand) {
     // il negozio blocca: prova con il lettore di Ollama (titolo e immagini)
     const key = Deno.env.get('OLLAMA_API_KEY')
     if (!key) throw new HttpError(500, 'Secret OLLAMA_API_KEY non impostato nella Edge Function')

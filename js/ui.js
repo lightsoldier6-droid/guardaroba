@@ -1,5 +1,6 @@
 // Piccoli strumenti per costruire l'interfaccia senza framework.
 import { COLORS } from './taxonomy.js'
+import { silhouetteSVG } from './silhouette.js'
 
 // Sostituisce/aggiunge figli ignorando null e false (il DOM nativo li scriverebbe come testo)
 const clean = (xs) => xs.flat(Infinity).filter((x) => x != null && x !== false)
@@ -146,9 +147,9 @@ export function coverPaths(it) {
 export function thumb(item, cls = '') {
   const p = coverPaths(item)
   const path = cls.includes('big') ? p.full : p.thumb
-  return h('span', { class: `ph ${cls}` }, path
+  return h('span', { class: `ph ${cls}` + (path ? '' : ' sil') }, path
     ? h('img', { 'data-path': path, alt: '' })
-    : h('i', { style: { background: COLORS[item?.color_primary]?.hex || 'var(--rule)' } }))
+    : h('span', { class: 'sil-art', html: silhouetteSVG(item) }))
 }
 
 // Immagine da un negozio online (solo anteprima): niente referrer, si nasconde se non si carica
