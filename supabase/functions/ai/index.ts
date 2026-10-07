@@ -674,6 +674,11 @@ export async function lookup(body: Node) {
 
   const pages = await Promise.allSettled(hits.slice(0, MAX_PAGES).map(async (hit) => {
     let html = '', url = hit.url, failure: Error | null = null
+    // negozio Shopify: prima i dati standard (una sola richiesta, spesso l'unica che non viene bloccata)
+    if (shopifyJsonUrl(hit.url)) {
+      const shop = await shopifyCandidate(hit.url).catch(() => null)
+      if (shop) return { hit, html: shop.text, url, shop: shop.cand }
+    }
     try {
       const page = await safeFetch(hit.url, 'text/html,application/xhtml+xml', PAGE_MAX_BYTES, PAGE_TIMEOUT_MS, true)
       if (!/html|xml/.test(page.type)) throw new Error('non è una pagina web')
@@ -682,7 +687,7 @@ export async function lookup(body: Node) {
       url = page.url
     } catch (e) { failure = e as Error }
     // pagina bloccata o senza foto: se è un negozio Shopify, i dati standard del prodotto
-    if (failure || !/<meta[^>]+og:image|"image"\s*:/i.test(html)) {
+    if (!shopifyJsonUrl(hit.url) && (failure || !/<meta[^>]+og:image|"image"\s*:/i.test(html))) {
       const shop = await shopifyCandidate(url).catch(() => null)
       if (shop) return { hit, html: html + ' ' + shop.text, url, shop: shop.cand }
     }
@@ -696,6 +701,9 @@ export async function lookup(body: Node) {
     const hit = hits[i]
     if (p.status === 'fulfilled') {
       const cand = p.value.shop ?? parseProductPage(p.value.html, p.value.url)
+      // pagine che non vendono il capo: "404" con risposta 200, o siti che citano il codice senza essere un negozio
+      if (/\b404\b|not found|non trovat|page introuvable|nicht gefunden/i.test(cand.title)) return
+      if (!cand.isProduct && !norm(cand.title).includes(norm(q.article_code) || '\u0000') && !(q.brand && norm(cand.title).includes(norm(q.brand)))) return
       const m = scoreCandidate(cand, `${p.value.html} ${hit.content}`, q)
       if (m) matches.push(m)
     } else {
@@ -771,19 +779,16 @@ export async function readPage(raw: unknown) {
   if (url.protocol === 'http:') url.protocol = 'https:'
   checkUrlShape(url)
   const empty = { article_code: '', color_code: '' }
-  let cand: Candidate | null = null
-  try {
+  let cand: Candidate | null = (await shopifyCandidate(url.toString()).catch(() => null))?.cand ?? null
+  if (!cand) try {
     const page = await safeFetch(url.toString(), 'text/html,application/xhtml+xml', PAGE_MAX_BYTES, 12_000, true)
     if (!/html|xml/.test(page.type)) throw new Error('non è una pagina web')
     const charset = page.type.match(/charset=([\w-]+)/)?.[1] ?? 'utf-8'
     let html: string
     try { html = new TextDecoder(charset).decode(page.bytes) } catch { html = new TextDecoder().decode(page.bytes) }
     cand = parseProductPage(html, page.url)
-    if (!cand.image) cand = (await shopifyCandidate(page.url).catch(() => null))?.cand ?? cand
   } catch (e) {
     if (e instanceof HttpError) throw e
-    const shop = await shopifyCandidate(url.toString()).catch(() => null)
-    if (shop) cand = shop.cand
   }
   if (!cand) {
     // il negozio blocca: prova con il lettore di Ollama (titolo e immagini)
