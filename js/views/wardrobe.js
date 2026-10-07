@@ -3,6 +3,7 @@ import { state, upsert, patch, remove, removeFiles, uuid } from '../store.js'
 import { CATEGORIES, COLORS, FABRICS, SEASONS, OCCASIONS, FIT_FEEL, WARMTH, SIZE_SYSTEMS, MATCH_LEVEL, compositionToText } from '../taxonomy.js'
 import { itemName, slotOf, toDay, daysBetween, wearStats } from '../outfit.js'
 import { hydrate } from '../images.js'
+import { dropOwnPhotos } from '../itemsave.js'
 import * as batch from '../batch.js'
 
 const eur = (n) => Number(n).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })
@@ -97,6 +98,11 @@ export function renderItem(root, { go, params }) {
     it.notes ? h('p', { class: 'notes' }, it.notes) : null,
     h('div', { class: 'actions' },
       h('button', { class: 'btn', onclick: () => go(`#/capo/${it.id}/modifica`) }, 'Modifica'),
+      it.photo_path || it.thumb_path ? h('button', { class: 'btn ghost', onclick: async () => {
+        const repl = it.catalog_photo_path ? 'la foto di catalogo' : 'la sagoma stilizzata'
+        if (!confirm(`Eliminare la tua foto di questo capo? Al suo posto vedrai ${repl}. L’etichetta resta.`)) return
+        await dropOwnPhotos([it]); toast('Foto eliminata')
+      } }, 'Togli la mia foto') : null,
       wornToday ? null : h('button', { class: 'btn ghost', onclick: () => {
         upsert('wear_log', { id: uuid(), item_id: it.id, worn_on: today }, { onConflict: 'item_id,worn_on', ignoreDuplicates: true })
         toast('Segnato come indossato oggi')

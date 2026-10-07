@@ -1,5 +1,6 @@
 import { h, put, add, toast, section, field, icon } from '../ui.js'
 import { state, sb, sync, clearLocal } from '../store.js'
+import { dropOwnPhotos } from '../itemsave.js'
 import { getPlace, setPlace, searchCity, getWeather } from '../weather.js'
 
 export const title = 'Impostazioni'
@@ -34,6 +35,19 @@ export function render(root, { rerender, go }) {
       h('p', { class: 'muted' }, 'Uso la posizione del telefono. Se non è disponibile, uso questa città: ', h('b', null, place?.name || 'nessuna')),
       field('Cerca città', h('div', { class: 'row-btn' }, q, h('button', { type: 'button', class: 'btn ghost', onclick: find }, 'Cerca'))),
       results),
+    section('Foto dei capi',
+      (() => {
+        const mine = state.items.filter((i) => i.photo_path || i.thumb_path)
+        return [
+          h('p', { class: 'muted' }, mine.length
+            ? `${mine.length} ${mine.length === 1 ? 'capo ha' : 'capi hanno'} una foto scattata da te. Puoi eliminarle tutte: al loro posto vedrai la foto di catalogo, se c’è, altrimenti la sagoma stilizzata nel colore del capo. Le foto delle etichette restano.`
+            : 'Nessun capo ha foto scattate da te: l’armadio usa foto di catalogo e sagome stilizzate.'),
+          mine.length ? h('button', { class: 'btn danger', onclick: async () => {
+            if (!confirm(`Eliminare definitivamente le tue foto di ${mine.length} ${mine.length === 1 ? 'capo' : 'capi'}? Le etichette e le foto di catalogo restano.`)) return
+            const n = await dropOwnPhotos(mine); toast(`${n} foto eliminate`); rerender()
+          } }, `Elimina le mie foto (${mine.length})`) : null,
+        ]
+      })()),
     section('Versione',
       h('p', { class: 'muted', id: 'appver' }, 'Versione dell’app: …')),
     section('Account',

@@ -1,5 +1,5 @@
 // Salvataggio di un capo con le sue foto: usato dalla scheda capo e dalla conferma in blocco della raffica.
-import { state, upsert, upload, removeFiles, uuid } from './store.js'
+import { state, upsert, upload, removeFiles, uuid, patch } from './store.js'
 
 export const FIELDS = ['kind', 'category', 'name', 'brand', 'color_primary', 'colors_secondary', 'composition', 'fabric', 'fit', 'size_label', 'size_system',
   'size_alt', 'care', 'warmth', 'seasons', 'occasions', 'fit_feel', 'price', 'purchased_on', 'photo_path', 'thumb_path', 'label_photo_path', 'notes', 'archived',
@@ -38,4 +38,17 @@ export async function saveItem(draft, pending = {}, existing = null) {
   await upsert('items', row)
   await removeFiles(old)
   return id
+}
+
+// Toglie le foto del capo scattate da te (non l'etichetta né la foto di catalogo).
+// Senza altre foto, l'app mostra la sagoma stilizzata nel colore principale.
+export async function dropOwnPhotos(items) {
+  let n = 0
+  for (const it of items) {
+    if (!it.photo_path && !it.thumb_path) continue
+    await removeFiles([it.photo_path, it.thumb_path])
+    await patch('items', it.id, { photo_path: null, thumb_path: null, cover: it.catalog_photo_path ? 'catalog' : null })
+    n++
+  }
+  return n
 }
